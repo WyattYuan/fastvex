@@ -61,6 +61,16 @@ def test_dry_run_upload_writes_default_local_state(robot_project: Path, monkeypa
     assert state["history"][-1]["results"][0]["build"]["command"] == []
 
 
+def test_upload_plan_uses_final_program_name(robot_project: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(robot_project)
+
+    assert main(["upload", "--slots", "3", "--dry-run"]) == 0
+
+    captured = capsys.readouterr()
+    assert "RedComp-Sparkle" in captured.out
+    assert "RedCompr0-Sparkle" not in captured.out
+
+
 def test_upload_uses_fake_pros_tools(
     robot_project: Path,
     fake_tool_path: Path,

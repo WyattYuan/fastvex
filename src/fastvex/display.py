@@ -16,10 +16,15 @@ def _role_style(route_set: str, mode: str) -> str:
 
 
 def _render_program_name(config: Any, profile: Any) -> str:
-    """Render program name: {modeCamel}{routeKey}-{robotName}."""
+    """Render the same program name used by upload."""
     mode_camel = mode_to_camel(profile.mode)
     robot_name = config.defaults.robot_name
-    return f"{mode_camel}{profile.route_key}-{robot_name}"
+    route_suffix = f"-{profile.route_name}" if profile.route > 0 and profile.route_name else ""
+    return config.defaults.name_template.format(
+        modeCamel=mode_camel,
+        routeSuffix=route_suffix,
+        robotName=robot_name,
+    )
 
 
 def print_show(config: Any, state: State) -> None:
