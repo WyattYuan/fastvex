@@ -4,6 +4,7 @@ from pathlib import Path
 
 import fastvex.executor as executor
 from fastvex.executor import CommandResult, CommandRunner, RunOptions, execute_upload
+from fastvex.state_model import State
 from fastvex.storage import load_config
 
 
@@ -32,23 +33,33 @@ def _options(slots: list[int], *, dry_run: bool = False) -> RunOptions:
 
 def test_execute_upload_calls_build_then_upload(robot_project: Path) -> None:
     config = load_config(robot_project / "fastvex.yaml")
-    state = {}
+    state = State()
     runner = FakeRunner()
 
     execution = execute_upload(robot_project, config, state, _options([3]), runner)
 
-    assert execution["status"] == "success"
+    assert execution.status == "success"
+    assert execution.results[0].build.command == ["pros", "make", "MODE=RED_COMP", "ROUTE=0"]
+    assert execution.results[0].build.returncode == 0
+    assert execution.results[0].upload.command == [
+        "pros",
+        "upload",
+        "--slot",
+        "3",
+        "--name",
+        "RedComp-Sparkle",
+    ]
     assert runner.calls == [
         ["pros", "make", "MODE=RED_COMP", "ROUTE=0"],
         ["pros", "upload", "--slot", "3", "--name", "RedComp-Sparkle"],
     ]
-    assert "3" in state["currentSlots"]
+    assert 3 in state.current_slots
 
 
 def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None:
     monkeypatch.setattr(executor.os, "cpu_count", lambda: 1)
     config = load_config(robot_project / "fastvex.yaml")
-    state = {}
+    state = State()
     runner = FakeRunner(
         {
             ("pros", "make", "MODE=RED_COMP", "ROUTE=0"): CommandResult(1, "pros failed"),
@@ -58,19 +69,19 @@ def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None
 
     execution = execute_upload(robot_project, config, state, _options([3]), runner)
 
-    assert execution["status"] == "failed"
+    assert execution.status == "failed"
     assert not any(call[:2] == ["pros", "upload"] for call in runner.calls)
-    assert state["currentSlots"] == {}
+    assert state.current_slots == {}
 
 
 def test_dry_run_does_not_call_runner(robot_project: Path) -> None:
     config = load_config(robot_project / "fastvex.yaml")
-    state = {}
+    state = State()
     runner = FakeRunner()
 
     execution = execute_upload(robot_project, config, state, _options([3], dry_run=True), runner)
 
-    assert execution["status"] == "success"
+    assert execution.status == "success"
     assert runner.calls == []
 
 
@@ -84,7 +95,7 @@ def test_profile_switch_touches_compile_time_dependent_sources(robot_project: Pa
 
     os.utime(source_stat_path, (old_time, old_time))
     before = source.stat().st_mtime_ns
-    state = {
+    state = State.model_validate({
         "history": [
             {
                 "results": [
@@ -95,8 +106,31 @@ def test_profile_switch_touches_compile_time_dependent_sources(robot_project: Pa
                 ]
             }
         ]
-    }
+    })
 
     execute_upload(robot_project, config, state, _options([3]), FakeRunner())
 
     assert source.stat().st_mtime_ns > before
+
+
+def test_state_model_reads_json_slot_keys_as_ints() -> None:
+    state = State.model_validate(
+        {
+            "currentSlots": {
+                "3": {
+                    "profileId": "red-comp:r0",
+                    "roleId": "red-comp",
+                    "routeSet": "red",
+                    "routeKey": "r0",
+                    "mode": "RED_COMP",
+                    "route": 0,
+                    "routeName": "Default",
+                    "label": "Red Comp",
+                    "finalName": "RedComp-Sparkle",
+                    "uploadedAt": "2026-05-25T17:00:00+08:00",
+                }
+            }
+        }
+    )
+
+    assert 3 in state.current_slots

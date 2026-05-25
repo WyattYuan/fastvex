@@ -58,6 +58,7 @@ def test_dry_run_upload_writes_default_local_state(robot_project: Path, monkeypa
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert state["history"][-1]["dryRun"] is True
     assert state["history"][-1]["requestedSlots"] == [1, 3]
+    assert state["history"][-1]["results"][0]["build"]["command"] == []
 
 
 def test_upload_uses_fake_pros_tools(

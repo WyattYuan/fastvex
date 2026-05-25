@@ -12,7 +12,7 @@ import typer
 from .display import print_execution_result, print_history, print_show, print_upload_plan
 from .executor import RunOptions, execute_upload
 from .models import resolve_profile
-from .storage import ValidationError, load_config, load_state, save_state
+from .storage import ValidationError, default_state, load_config, load_state, save_state
 from .templates import DEFAULT_CONFIG_TEXT
 from .theme import FAIL, INFO, OK, WARN, confirm, console
 
@@ -173,16 +173,7 @@ def cmd_init(args: Any) -> int:
     if st.exists():
         rprint(f"  [cyan]state exists:[/cyan] {st}")
     else:
-        seed = {
-            "schemaVersion": 1,
-            "createdAt": None,
-            "updatedAt": None,
-            "lastRobotName": "Sparkle",
-            "lastPort": "",
-            "currentSlots": {},
-            "history": [],
-        }
-        save_state(st, seed)
+        save_state(st, default_state())
         rprint(f"  [green]created state:[/green] {st}")
 
     rprint(f"\n  [bold green]{OK} init ok[/bold green]\n")
@@ -225,7 +216,7 @@ def cmd_validate(args: Any) -> int:
 def cmd_history(args: Any) -> int:
     paths = resolve_project_paths(args)
     state = load_state(paths.state)
-    hist = state.get("history", [])
+    hist = state.history
 
     rprint()
     if not hist:
@@ -241,13 +232,13 @@ def cmd_history_clean(args: Any) -> int:
     state = load_state(state_path)
 
     keep = args.keep
-    hist = list(state.get("history", []))
+    hist = list(state.history)
     if len(hist) <= keep:
         rprint(f"  [dim]history has {len(hist)} entries, no cleanup needed (keep={keep})[/dim]")
         return 0
 
     removed = len(hist) - keep
-    state["history"] = hist[-keep:]
+    state.history = hist[-keep:]
     save_state(state_path, state)
     rprint(f"  [green]{OK} cleaned[/green] {removed} [dim]old entries, kept last[/dim] {keep}")
     return 0
@@ -266,8 +257,8 @@ def cmd_upload(args: Any) -> int:
     if not slots:
         raise ValidationError("no target slots selected; use --slots / --group / --all-enabled")
 
-    robot_name = args.robot_name or config.defaults.robot_name or state.get("lastRobotName") or "Sparkle"
-    port = args.port if args.port is not None else (state.get("lastPort") or config.defaults.port or "")
+    robot_name = args.robot_name or config.defaults.robot_name or state.last_robot_name or "Sparkle"
+    port = args.port if args.port is not None else (state.last_port or config.defaults.port or "")
 
     print_upload_plan(config, slots)
 
@@ -297,7 +288,7 @@ def cmd_upload(args: Any) -> int:
     save_state(state_path, state)
     print_execution_result(execution)
 
-    failed = [r for r in execution["results"] if not (r["build"]["ok"] and r["upload"]["ok"])]
+    failed = [r for r in execution.results if not (r.build.ok and r.upload.ok)]
     return 1 if failed else 0
 
 

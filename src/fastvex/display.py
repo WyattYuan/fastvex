@@ -5,14 +5,9 @@ from typing import Any
 from rich.panel import Panel
 from rich.text import Text
 
-from .models import resolve_profile, mode_to_camel
-from .theme import (
-    OK, FAIL, WARN, ROCKET,
-    role_tone, console,
-)
-
-
-# ─── Helpers ─────────────────────────────────────────────────────────────────
+from .models import mode_to_camel, resolve_profile
+from .state_model import ExecutionRecord, State, StateSlotEntry
+from .theme import FAIL, OK, ROCKET, WARN, console, role_tone
 
 
 def _role_style(route_set: str, mode: str) -> str:
@@ -20,33 +15,22 @@ def _role_style(route_set: str, mode: str) -> str:
     return f"bold {color}" if not is_dim else color
 
 
-def _styled(text: str, style: str) -> Text:
-    """Return a Rich Text with the given style."""
-    return Text(text, style=style)
-
-
 def _render_program_name(config: Any, profile: Any) -> str:
-    """Render program name: {modeCamel}{routeKey}-{robotName}"""
+    """Render program name: {modeCamel}{routeKey}-{robotName}."""
     mode_camel = mode_to_camel(profile.mode)
     robot_name = config.defaults.robot_name
     return f"{mode_camel}{profile.route_key}-{robot_name}"
 
 
-# ─── print_show ──────────────────────────────────────────────────────────────
-
-
-def print_show(config: Any, state: dict[str, Any]) -> None:
+def print_show(config: Any, state: State) -> None:
     """Display the full show output: routes, slot mapping, current slots, history."""
     from .theme import role_tone as _rt
 
-    # ── Active routes ──
     route_items = []
     for route_set in sorted(config.active_route.keys()):
         color, _ = _rt(route_set, "COMP")
         key = config.active_route[route_set]
-        route_items.append(
-            Text(f"{route_set}:{key}", style=f"bold {color}")
-        )
+        route_items.append(Text(f"{route_set}:{key}", style=f"bold {color}"))
 
     print()
     console.print("  [bold cyan]Active Routes[/bold cyan]")
@@ -55,27 +39,22 @@ def print_show(config: Any, state: dict[str, Any]) -> None:
     console.print()
     print()
 
-    # ── Slot mapping ──
     console.print("  [bold cyan]Slot Mapping[/bold cyan]")
     _print_slot_table(config)
     print()
 
-    # ── Last known current slots ──
-    current = state.get("currentSlots", {})
     console.print("  [bold cyan]Last Known Slots[/bold cyan]")
-    if not current:
+    if not state.current_slots:
         console.print("  [dim](empty)[/dim]")
     else:
-        _print_current_slots(current)
+        _print_current_slots(state.current_slots)
     print()
 
-    # ── Recent history ──
     console.print("  [bold cyan]Recent History[/bold cyan]")
-    hist = state.get("history", [])
-    if not hist:
+    if not state.history:
         console.print("  [dim](empty)[/dim]")
     else:
-        for i, item in enumerate(reversed(hist), 1):
+        for i, item in enumerate(reversed(state.history), 1):
             _print_history_compact(item, i)
     print()
 
@@ -95,81 +74,58 @@ def _print_slot_table(config: Any) -> None:
         )
 
 
-def _print_current_slots(current: dict[str, Any]) -> None:
+def _print_current_slots(current: dict[int, StateSlotEntry]) -> None:
     """Print current slots as formatted lines."""
     for slot in range(1, 9):
-        entry = current.get(str(slot))
+        entry = current.get(slot)
         if not entry:
             console.print(f"  [dim]Slot {slot}: (unknown)[/dim]")
         else:
-            style = _role_style(entry.get("routeSet", ""), entry.get("mode", ""))
+            style = _role_style(entry.route_set, entry.mode)
             console.print(
                 f"  [bold {style}]Slot {slot}[/bold {style}]  "
-                f"[{style}]{entry.get('profileId', '')}[/{style}]  "
+                f"[{style}]{entry.profile_id}[/{style}]  "
                 f"[green]{ROCKET}[/green]  "
-                f"[green]{entry.get('finalName', '')}[/green]"
+                f"[green]{entry.final_name}[/green]"
             )
 
 
-# ─── History display ─────────────────────────────────────────────────────────
-
-
-def _print_history_compact(item: dict[str, Any], index: int) -> None:
+def _print_history_compact(item: ExecutionRecord, index: int) -> None:
     """Print one history entry as a compact single line."""
-    status   = str(item.get("status"))
-    slots    = item.get("requestedSlots", [])
-    duration = item.get("durationSec", 0)
-    dry      = item.get("dryRun", False)
-    user     = item.get("username", "?")
-    results  = item.get("results", [])
-
-    # Build line with Text for proper alignment (markup in plain strings causes issues)
     line = Text()
-
-    # Index (indented to match Slot entries)
     line.append(f"  #{index:<2}  ")
 
-    # Status icon + fixed-width text
-    if status == "success":
+    if item.status == "success":
         line.append(OK, style="green")
-        line.append(" success   ")  # 8 chars for alignment
-    elif status == "failed":
+        line.append(" success   ")
+    elif item.status == "failed":
         line.append(FAIL, style="bold red")
-        line.append(" failed    ")  # 8 chars for alignment
+        line.append(" failed    ")
     else:
         line.append(WARN, style="yellow")
-        line.append(f" {status:<8}")
+        line.append(f" {item.status:<8}")
 
-    # Time
-    started_raw = item.get("startedAt", "")
-    time_str = started_raw[11:19] if len(started_raw) > 19 else ""
+    time_str = item.started_at[11:19] if len(item.started_at) > 19 else ""
     line.append(f"  {time_str:<8}", style="dim")
+    line.append(f"  {item.username:<15}")
 
-    # User (fixed width)
-    line.append(f"  {user:<15}")
-
-    # Slot list
-    slot_list = ",".join(str(s) for s in slots) if slots else "-"
+    slot_list = ",".join(str(slot) for slot in item.requested_slots) if item.requested_slots else "-"
     line.append(f"  {slot_list:<5}", style="bold")
+    line.append(f"  {item.duration_sec}s")
 
-    # Duration
-    line.append(f"  {duration}s")
-
-    # Failure details
-    for r in results:
-        if not r["build"]["ok"]:
+    for result in item.results:
+        if not result.build.ok:
             line.append(f"  build={FAIL}", style="bold red")
-        if not r["upload"]["ok"]:
+        if not result.upload.ok:
             line.append(f"  upload={FAIL}", style="bold red")
 
-    # Dry-run marker at the end
-    if dry:
+    if item.dry_run:
         line.append("  [dry]", style="dim")
 
     console.print(line)
 
 
-def print_history(hist: list[dict[str, Any]]) -> None:
+def print_history(hist: list[ExecutionRecord]) -> None:
     """Print the full history list."""
     if not hist:
         console.print("  [dim](empty)[/dim]")
@@ -178,17 +134,14 @@ def print_history(hist: list[dict[str, Any]]) -> None:
         _print_history_compact(item, i)
 
 
-# ─── Upload plan ─────────────────────────────────────────────────────────────
-
-
 def print_upload_plan(config: Any, slots: list[int]) -> None:
     """Print the upload plan as a simple list."""
     console.print()
     for slot in slots:
-        p = resolve_profile(config, slot)
-        prog_name = _render_program_name(config, p)
-        route_display = f"[{p.route_key}] {p.route_name}"
-        color, _ = role_tone(p.route_set, p.mode)
+        profile = resolve_profile(config, slot)
+        prog_name = _render_program_name(config, profile)
+        route_display = f"[{profile.route_key}] {profile.route_name}"
+        color, _ = role_tone(profile.route_set, profile.mode)
         console.print(
             f"  [white]Slot {slot}[/white]  "
             f"[{color}]{prog_name}[/{color}]  "
@@ -197,46 +150,37 @@ def print_upload_plan(config: Any, slots: list[int]) -> None:
     console.print()
 
 
-# ─── Execution result ─────────────────────────────────────────────────────────
-
-
-def print_execution_result(execution: dict[str, Any]) -> None:
+def print_execution_result(execution: ExecutionRecord) -> None:
     """Print a summary panel after upload completes."""
-    status   = str(execution.get("status", "unknown"))
-    results  = execution.get("results", [])
-    failed   = [r for r in results if not (r["build"]["ok"] and r["upload"]["ok"])]
-    duration = execution.get("durationSec", 0)
-    dry      = execution.get("dryRun", False)
-    user_info = f"{execution.get('username', '?')}@{execution.get('hostname', '?')}"
+    failed = [result for result in execution.results if not (result.build.ok and result.upload.ok)]
+    user_info = f"{execution.username}@{execution.hostname}"
 
-    if status == "success":
+    if execution.status == "success":
         status_display = Text(f"{OK} success", style="bold green")
-    elif status == "failed":
+    elif execution.status == "failed":
         status_display = Text(f"{FAIL} failed", style="bold red")
     else:
-        status_display = Text(f"{WARN} {status}", style="yellow")
+        status_display = Text(f"{WARN} {execution.status}", style="yellow")
 
-    if dry:
+    if execution.dry_run:
         status_display.append(" [dry-run]", style="dim")
 
-    lines: list[Text] = []
-    lines.append(status_display)
-    lines.append(Text(f"{ROCKET}  [dim]{user_info}[/dim]"))
-    lines.append(Text(f"Duration: {duration}s"))
-    lines.append(Text(f"Slots: {len(results)} total"))
+    lines: list[Text] = [
+        status_display,
+        Text(f"{ROCKET}  [dim]{user_info}[/dim]"),
+        Text(f"Duration: {execution.duration_sec}s"),
+        Text(f"Slots: {len(execution.results)} total"),
+    ]
 
     if failed:
         lines.append(Text(""))
         lines.append(Text(f"{FAIL} Failed slots:", style="bold red"))
-        for r in failed:
-            slot = r.get("slot", "?")
-            be   = r.get("build", {}).get("error", "")
-            ue   = r.get("upload", {}).get("error", "")
-            lines.append(Text(f"  slot {slot}:"))
-            if be:
-                lines.append(Text(f"    build: {be}", style="red"))
-            if ue:
-                lines.append(Text(f"    upload: {ue}", style="red"))
+        for result in failed:
+            lines.append(Text(f"  slot {result.slot}:"))
+            if result.build.error:
+                lines.append(Text(f"    build: {result.build.error}", style="red"))
+            if result.upload.error:
+                lines.append(Text(f"    upload: {result.upload.error}", style="red"))
     else:
         lines.append(Text(f"{OK} All slots OK", style="green"))
 
