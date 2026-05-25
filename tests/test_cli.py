@@ -26,6 +26,12 @@ def test_validate_finds_config_from_child_directory(robot_project: Path, monkeyp
     assert main(["validate"]) == 0
 
 
+def test_validate_accepts_global_config_before_command(robot_project: Path, monkeypatch) -> None:
+    monkeypatch.chdir(robot_project / "src")
+
+    assert main(["--config", str(robot_project / "fastvex.yaml"), "validate"]) == 0
+
+
 def test_legacy_config_name_is_readable(tmp_path: Path, monkeypatch, capsys) -> None:
     (tmp_path / "vex_upload_config.yaml").write_text(DEFAULT_CONFIG_TEXT, encoding="utf-8")
     monkeypatch.chdir(tmp_path)

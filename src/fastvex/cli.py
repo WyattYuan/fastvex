@@ -1,21 +1,37 @@
 from __future__ import annotations
 
-import argparse
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Annotated, Any
+import sys
 
-from .display import print_show, print_history, print_upload_plan, print_execution_result
+import click
+import typer
+
+from .display import print_execution_result, print_history, print_show, print_upload_plan
 from .executor import RunOptions, execute_upload
 from .models import resolve_profile
 from .storage import ValidationError, load_config, load_state, save_state
 from .templates import DEFAULT_CONFIG_TEXT
-from .theme import OK, FAIL, WARN, INFO, confirm, console
+from .theme import FAIL, INFO, OK, WARN, confirm, console
 
 DEFAULT_CONFIG = "fastvex.yaml"
 LEGACY_CONFIG = "vex_upload_config.yaml"
 DEFAULT_STATE = ".fastvex/state.json"
+
+CommonConfig = Annotated[str | None, typer.Option("--config", help="Config file path.")]
+CommonState = Annotated[str | None, typer.Option("--state", help="State file path.")]
+
+app = typer.Typer(
+    name="fastvex",
+    help="Fast VEX slot-oriented build/upload manager.",
+    invoke_without_command=True,
+)
+history_app = typer.Typer(help="Show or clean history.")
+route_app = typer.Typer(help="Show or set active route by route set.")
+app.add_typer(history_app, name="history")
+app.add_typer(route_app, name="route")
 
 
 def rprint(*args, **kwargs) -> None:
@@ -58,7 +74,7 @@ def find_config(start: Path) -> tuple[Path, bool] | None:
     return None
 
 
-def resolve_project_paths(args: argparse.Namespace, *, require_config: bool = True) -> ProjectPaths:
+def resolve_project_paths(args: Any, *, require_config: bool = True) -> ProjectPaths:
     config_arg = getattr(args, "config", None)
     if config_arg:
         config_path = Path(config_arg)
@@ -104,7 +120,7 @@ def parse_slot_expr(expr: str) -> list[int]:
     return sorted(set(values))
 
 
-def resolve_slots(args: argparse.Namespace, config: Any) -> list[int]:
+def resolve_slots(args: Any, config: Any) -> list[int]:
     if getattr(args, "all_enabled", False):
         return sorted(config.slots.keys())
 
@@ -121,12 +137,24 @@ def resolve_slots(args: argparse.Namespace, config: Any) -> list[int]:
     return []
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Commands
-# ═══════════════════════════════════════════════════════════════════════════════
+def _args(**kwargs: Any) -> SimpleNamespace:
+    return SimpleNamespace(**kwargs)
 
 
-def cmd_init(args: argparse.Namespace) -> int:
+def _ctx_options(ctx: typer.Context, config: str | None, state: str | None) -> dict[str, str | None]:
+    obj = ctx.obj or {}
+    return {
+        "config": config if config is not None else obj.get("config"),
+        "state": state if state is not None else obj.get("state"),
+    }
+
+
+def _finish(code: int) -> None:
+    if code:
+        raise typer.Exit(code)
+
+
+def cmd_init(args: Any) -> int:
     root = Path.cwd().resolve()
     cfg = _resolve_relative_to(root, args.config or DEFAULT_CONFIG).resolve()
     st = _resolve_relative_to(root, args.state or DEFAULT_STATE).resolve()
@@ -161,7 +189,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_show(args: argparse.Namespace) -> int:
+def cmd_show(args: Any) -> int:
     paths = resolve_project_paths(args)
     config = load_config(paths.config)
     state = load_state(paths.state)
@@ -169,7 +197,7 @@ def cmd_show(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_validate(args: argparse.Namespace) -> int:
+def cmd_validate(args: Any) -> int:
     paths = resolve_project_paths(args)
     config = load_config(paths.config)
     load_state(paths.state)
@@ -187,17 +215,17 @@ def cmd_validate(args: argparse.Namespace) -> int:
                 f"{resolved.route_set}:{resolved.route_key}"
             )
 
-    for w in warnings:
-        rprint(w)
+    for warning in warnings:
+        rprint(warning)
 
     rprint(f"\n  [bold green]{OK} validate ok[/bold green]\n")
     return 0
 
 
-def cmd_history(args: argparse.Namespace) -> int:
+def cmd_history(args: Any) -> int:
     paths = resolve_project_paths(args)
     state = load_state(paths.state)
-    hist  = state.get("history", [])
+    hist = state.get("history", [])
 
     rprint()
     if not hist:
@@ -207,7 +235,7 @@ def cmd_history(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_history_clean(args: argparse.Namespace) -> int:
+def cmd_history_clean(args: Any) -> int:
     paths = resolve_project_paths(args)
     state_path = paths.state
     state = load_state(state_path)
@@ -225,14 +253,14 @@ def cmd_history_clean(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_upload(args: argparse.Namespace) -> int:
+def cmd_upload(args: Any) -> int:
     paths = resolve_project_paths(args)
     root = paths.root
     cfg_path = paths.config
     state_path = paths.state
 
     config = load_config(cfg_path)
-    state  = load_state(state_path)
+    state = load_state(state_path)
 
     slots = resolve_slots(args, config)
     if not slots:
@@ -273,7 +301,7 @@ def cmd_upload(args: argparse.Namespace) -> int:
     return 1 if failed else 0
 
 
-def run_default_interactive(args: argparse.Namespace) -> int:
+def run_default_interactive(args: Any) -> int:
     code = cmd_show(args)
     if code != 0:
         return code
@@ -290,16 +318,15 @@ def run_default_interactive(args: argparse.Namespace) -> int:
         rprint("\n  [blue]bye[/blue]\n")
         return 0
 
-    # reset upload-related args before delegating to cmd_upload
-    args.yes         = False
-    args.dry_run     = False
-    args.clean       = False
-    args.quiet       = False
-    args.robot_name  = None
-    args.port        = None
+    args.yes = False
+    args.dry_run = False
+    args.clean = False
+    args.quiet = False
+    args.robot_name = None
+    args.port = None
     args.all_enabled = False
-    args.group       = None
-    args.slots       = None
+    args.group = None
+    args.slots = None
 
     if raw.lower() == "all":
         args.all_enabled = True
@@ -311,12 +338,7 @@ def run_default_interactive(args: argparse.Namespace) -> int:
     return cmd_upload(args)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Route commands
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def cmd_route_show(args: argparse.Namespace) -> int:
+def cmd_route_show(args: Any) -> int:
     from .theme import role_tone
 
     paths = resolve_project_paths(args)
@@ -324,7 +346,6 @@ def cmd_route_show(args: argparse.Namespace) -> int:
 
     rprint()
 
-    # ── Active routes row
     route_items = []
     for route_set in sorted(config.active_route.keys()):
         color, _ = role_tone(route_set, "COMP")
@@ -335,7 +356,6 @@ def cmd_route_show(args: argparse.Namespace) -> int:
     rprint(f"  {'   '.join(route_items)}")
     rprint()
 
-    # ── Available routes
     rprint("  [bold cyan]Available Routes[/bold cyan]")
     for route_set in sorted(config.routes.keys()):
         color, _ = role_tone(route_set, "COMP")
@@ -365,7 +385,6 @@ def _replace_active_route_in_text(text: str, route_set: str, route_key: str) -> 
             in_active = True
             continue
         if in_active:
-            # left-indent ended → activeRoute block is over
             if stripped and not line.startswith("  "):
                 break
             key_prefix = f"  {route_set}:"
@@ -378,7 +397,7 @@ def _replace_active_route_in_text(text: str, route_set: str, route_key: str) -> 
     return "\n".join(lines) + "\n"
 
 
-def cmd_route_set(args: argparse.Namespace) -> int:
+def cmd_route_set(args: Any) -> int:
     from .theme import role_tone
 
     paths = resolve_project_paths(args)
@@ -402,7 +421,7 @@ def cmd_route_set(args: argparse.Namespace) -> int:
         rprint(f"\n  [dim]{INFO} route unchanged:[/dim] {route_set}={route_key}\n")
         return 0
 
-    raw     = config_path.read_text(encoding="utf-8")
+    raw = config_path.read_text(encoding="utf-8")
     updated = _replace_active_route_in_text(raw, route_set, route_key)
     config_path.write_text(updated, encoding="utf-8")
 
@@ -415,113 +434,158 @@ def cmd_route_set(args: argparse.Namespace) -> int:
     return 0
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Argument parser helpers
-# ═══════════════════════════════════════════════════════════════════════════════
+@app.callback()
+def root(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    ctx.obj = {"config": config, "state": state}
+    if ctx.invoked_subcommand is None:
+        _finish(run_default_interactive(_args(config=config, state=state)))
 
 
-def _add_common_args(parser: argparse.ArgumentParser, *, suppress_default: bool = False) -> None:
-    default = argparse.SUPPRESS if suppress_default else None
-    parser.add_argument("--config", default=default)
-    parser.add_argument("--state", default=default)
+@app.command("init")
+def init_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    _finish(cmd_init(_args(**_ctx_options(ctx, config, state))))
 
 
-def _add_history_subparsers(sub: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
-    show = sub.add_parser("show", help="print recent history entries")
-    _add_common_args(show, suppress_default=True)
-    show.set_defaults(func=cmd_history)
+@app.command("show")
+def show_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    _finish(cmd_show(_args(**_ctx_options(ctx, config, state))))
 
-    clean = sub.add_parser("clean", help="clean old history entries")
-    _add_common_args(clean, suppress_default=True)
-    clean.add_argument(
-        "--keep", type=int, default=10,
-        help="number of entries to keep (default: 10)"
+
+@app.command("validate")
+def validate_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    _finish(cmd_validate(_args(**_ctx_options(ctx, config, state))))
+
+
+@app.command("upload")
+def upload_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+    slots: Annotated[str | None, typer.Option("--slots", help="Slot list, e.g. '1,3,5'.")] = None,
+    group: Annotated[str | None, typer.Option("--group", help="Group name defined in config.")] = None,
+    all_enabled: Annotated[
+        bool,
+        typer.Option("--all-enabled", help="Target all configured slots."),
+    ] = False,
+    robot_name: Annotated[str | None, typer.Option("--robot-name", help="Override robot name.")] = None,
+    port: Annotated[str | None, typer.Option("--port", help="Override port. Empty means auto.")] = None,
+    clean: Annotated[bool, typer.Option("--clean", help="Run make clean before build.")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", help="Capture build/upload output.")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Plan without build/upload.")] = False,
+    yes: Annotated[bool, typer.Option("-y", "--yes", help="Skip confirm prompt.")] = False,
+) -> None:
+    options = _ctx_options(ctx, config, state)
+    _finish(
+        cmd_upload(
+            _args(
+                **options,
+                slots=slots,
+                group=group,
+                all_enabled=all_enabled,
+                robot_name=robot_name,
+                port=port,
+                clean=clean,
+                quiet=quiet,
+                dry_run=dry_run,
+                yes=yes,
+            )
+        )
     )
-    clean.set_defaults(func=cmd_history_clean)
 
 
-def _add_route_subparsers(sub: argparse._SubParsersAction) -> None:  # type: ignore[type-arg]
-    show = sub.add_parser("show", help="show active and available routes")
-    _add_common_args(show, suppress_default=True)
-    show.set_defaults(func=cmd_route_show)
+@history_app.callback()
+def history_root(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    parent = ctx.parent.obj if ctx.parent and ctx.parent.obj else {}
+    ctx.obj = {
+        "config": config if config is not None else parent.get("config"),
+        "state": state if state is not None else parent.get("state"),
+    }
 
-    set_ = sub.add_parser("set", help="set active route for a route set")
-    _add_common_args(set_, suppress_default=True)
-    set_.add_argument("route_set", help="route set name, e.g. red")
-    set_.add_argument("route_key", help="route key, e.g. LC")
-    set_.set_defaults(func=cmd_route_set)
+
+@history_app.command("show")
+def history_show_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    _finish(cmd_history(_args(**_ctx_options(ctx, config, state))))
 
 
-def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(
-        prog="fastvex",
-        description="Fast VEX slot-oriented build/upload manager",
+@history_app.command("clean")
+def history_clean_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+    keep: Annotated[int, typer.Option("--keep", help="Number of entries to keep.")] = 10,
+) -> None:
+    _finish(cmd_history_clean(_args(**_ctx_options(ctx, config, state), keep=keep)))
+
+
+@route_app.callback()
+def route_root(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    parent = ctx.parent.obj if ctx.parent and ctx.parent.obj else {}
+    ctx.obj = {
+        "config": config if config is not None else parent.get("config"),
+        "state": state if state is not None else parent.get("state"),
+    }
+
+
+@route_app.command("show")
+def route_show_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    _finish(cmd_route_show(_args(**_ctx_options(ctx, config, state))))
+
+
+@route_app.command("set")
+def route_set_command(
+    ctx: typer.Context,
+    route_set: str,
+    route_key: str,
+    config: CommonConfig = None,
+    state: CommonState = None,
+) -> None:
+    _finish(
+        cmd_route_set(
+            _args(**_ctx_options(ctx, config, state), route_set=route_set, route_key=route_key)
+        )
     )
-    _add_common_args(p)
-
-    sub = p.add_subparsers(dest="cmd", required=False)
-
-    # simple commands
-    init = sub.add_parser("init", help="initialize local files")
-    _add_common_args(init, suppress_default=True)
-    init.set_defaults(func=cmd_init)
-
-    show = sub.add_parser("show", help="show slot mapping and recent history")
-    _add_common_args(show, suppress_default=True)
-    show.set_defaults(func=cmd_show)
-
-    validate = sub.add_parser("validate", help="validate config and state")
-    _add_common_args(validate, suppress_default=True)
-    validate.set_defaults(func=cmd_validate)
-
-    # history
-    history_parser = sub.add_parser("history", help="show or clean history")
-    _add_common_args(history_parser, suppress_default=True)
-    _add_history_subparsers(history_parser.add_subparsers(dest="history_cmd", required=True))
-
-    # upload
-    upload = sub.add_parser("upload", help="build and upload selected slots")
-    _add_common_args(upload, suppress_default=True)
-    upload.add_argument("--slots", help="slot list, e.g. '1,3,5'")
-    upload.add_argument("--group", help="group name defined in config")
-    upload.add_argument("--all-enabled", action="store_true", help="target all slots in mapping")
-    upload.add_argument("--robot-name", help="override robot name")
-    upload.add_argument(
-        "--port", nargs="?", const="",
-        help="override port (empty for auto detect)",
-    )
-    upload.add_argument("--clean", action="store_true")
-    upload.add_argument("--quiet", action="store_true")
-    upload.add_argument("--dry-run", action="store_true")
-    upload.add_argument("-y", "--yes", action="store_true", help="skip confirm prompt")
-    upload.set_defaults(func=cmd_upload)
-
-    # route
-    route_parser = sub.add_parser("route", help="show or set active route by route set")
-    _add_common_args(route_parser, suppress_default=True)
-    _add_route_subparsers(route_parser.add_subparsers(dest="route_cmd", required=True))
-
-    return p
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Entry point
-# ═══════════════════════════════════════════════════════════════════════════════
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args   = parser.parse_args(argv)
-
-    if args.cmd is None:
-        args.cmd  = "interactive"
-        args.func = run_default_interactive
-
     try:
-        return int(args.func(args))
-    except ValidationError as e:
-        # fall back to plain print for stderr to avoid rich markup leakage
-        print(f"\n  [bold red]{FAIL} validation error:[/bold red] {e}\n", file=sys.stderr)
+        app(args=argv, prog_name="fastvex", standalone_mode=False)
+        return 0
+    except click.exceptions.Exit as exc:
+        return int(exc.exit_code)
+    except ValidationError as exc:
+        print(f"\n  [bold red]{FAIL} validation error:[/bold red] {exc}\n", file=sys.stderr)
         return 2
     except KeyboardInterrupt:
         print(f"\n  [yellow]{WARN} interrupted[/yellow]\n", file=sys.stderr)
