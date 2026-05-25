@@ -10,14 +10,14 @@
 
 ```powershell
 uvx fastvex validate
-uvx fastvex upload --slots 1,3 -y
+uvx fastvex
 ```
 
 全局安装：
 
 ```powershell
-pipx install fastvex
-fastvex show
+uv tool install fastvex
+fastvex
 ```
 
 本仓库本地开发时：
