@@ -71,6 +71,9 @@ fastvex validate
 # 展示槽位映射、当前状态和历史
 fastvex show
 
+# 展示完整历史
+fastvex show --full
+
 # 预览上传，不执行 PROS 构建/上传
 fastvex upload --slots 3 --dry-run
 
@@ -86,6 +89,7 @@ fastvex route set red r1
 
 # 查看和清理历史
 fastvex history show
+fastvex history show --limit 5
 fastvex history clean --keep 10
 ```
 

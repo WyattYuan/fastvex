@@ -8,7 +8,13 @@ import click
 import typer
 
 from . import __version__
-from .display import print_execution_result, print_history, print_show, print_upload_plan
+from .display import (
+    print_dashboard,
+    print_execution_result,
+    print_history,
+    print_show,
+    print_upload_plan,
+)
 from .services import (
     HistoryCleanReport,
     ToolchainReport,
@@ -39,6 +45,7 @@ history_app = typer.Typer(help="Show or clean history.")
 route_app = typer.Typer(help="Show or set active route by route set.")
 app.add_typer(history_app, name="history")
 app.add_typer(route_app, name="route")
+
 
 def _ctx_options(ctx: typer.Context, config: str | None, state: str | None) -> dict[str, str | None]:
     obj = ctx.obj or {}
@@ -92,14 +99,9 @@ def _upload_request(
 def run_default_interactive(config: str | None = None, state: str | None = None) -> int:
     report = show_project(config=config, state=state)
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
-    print_show(report.config, report.state)
+    print_dashboard(report.config, report.state)
 
-    console.print("  [bold cyan]Select upload target:[/bold cyan]")
-    console.print("    [dim]slot list[/dim]  e.g. [green]1,3,5[/green]")
-    console.print("    [dim]group:name[/dim]  e.g. [green]group:comp-default[/green]")
-    console.print("    [dim]all[/dim]         upload all enabled slots")
-    console.print("    [dim]q[/dim]           quit")
-    console.print()
+    console.print("  [bold cyan]Target[/bold cyan]  [dim]1,3 | group:all-enabled | all | q[/dim]")
 
     raw = console.input("  [cyan]target[/cyan]> ").strip()
     if not raw or raw.lower() in {"q", "quit", "exit"}:
@@ -176,10 +178,11 @@ def show_command(
     ctx: typer.Context,
     config: CommonConfig = None,
     state: CommonState = None,
+    full: Annotated[bool, typer.Option("--full", help="Show full history.")] = False,
 ) -> None:
     report = show_project(**_ctx_options(ctx, config, state))
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
-    print_show(report.config, report.state)
+    print_show(report.config, report.state, history_limit=None if full else 3)
 
 
 @app.command("validate")
@@ -280,6 +283,7 @@ def history_show_command(
     ctx: typer.Context,
     config: CommonConfig = None,
     state: CommonState = None,
+    limit: Annotated[int | None, typer.Option("--limit", help="Number of recent entries to show.")] = None,
 ) -> None:
     report = get_history(**_ctx_options(ctx, config, state))
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
@@ -287,7 +291,7 @@ def history_show_command(
     if not report.state.history:
         console.print("  [dim](empty)[/dim]")
     else:
-        print_history(report.state.history)
+        print_history(report.state.history, limit=limit)
 
 
 @history_app.command("clean")

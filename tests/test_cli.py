@@ -4,6 +4,7 @@ import json
 import tomllib
 from pathlib import Path
 
+import fastvex.cli as cli
 from fastvex.cli import main
 from fastvex.templates import DEFAULT_CONFIG_TEXT
 
@@ -101,6 +102,33 @@ def test_upload_uses_fake_pros_tools(
     assert "pros make MODE=RED_COMP ROUTE=0" in log
     assert "pros upload --slot 3 --name RedComp-Evergarden" not in log
     assert "pros upload --slot 3 --name RedComp-Sparkle" in log
+
+
+def test_default_command_uses_compact_dashboard(robot_project: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(robot_project)
+    monkeypatch.setattr(cli.console, "input", lambda prompt: "q")
+
+    assert main([]) == 0
+
+    captured = capsys.readouterr()
+    assert "Target" in captured.out
+    assert "Recent History" not in captured.out
+    assert "Last Known Slots" not in captured.out
+
+
+def test_show_limits_recent_history_by_default(robot_project: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(robot_project)
+    for _ in range(4):
+        assert main(["upload", "--slots", "3", "--dry-run"]) == 0
+
+    assert main(["show"]) == 0
+
+    captured = capsys.readouterr()
+    assert "showing last 3 of 4" in captured.out
+
+    assert main(["show", "--full"]) == 0
+    captured = capsys.readouterr()
+    assert "showing last 3 of 4" not in captured.out
 
 
 def test_pros_make_failure_falls_back_to_make(

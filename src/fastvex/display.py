@@ -27,23 +27,46 @@ def _render_program_name(config: Any, profile: Any) -> str:
     )
 
 
-def print_show(config: Any, state: State) -> None:
-    """Display the full show output: routes, slot mapping, current slots, history."""
-    from .theme import role_tone as _rt
-
+def _active_route_items(config: Any) -> list[Text]:
     route_items: list[Text] = []
     for route_set in sorted(config.active_route.keys()):
-        color, _ = _rt(route_set, "COMP")
+        color, _ = role_tone(route_set, "COMP")
         key = config.active_route[route_set]
         item = Text()
         item.append(route_set, style=f"bold {color}")
         item.append(":")
         item.append(key, style=color)
         route_items.append(item)
+    return route_items
 
+
+def print_dashboard(config: Any, state: State) -> None:
+    """Display the compact default interactive dashboard."""
+    console.print()
+    console.print(f"  [bold cyan]fastvex[/bold cyan]  [dim]{config.defaults.robot_name}[/dim]")
+    console.print()
+
+    console.print("  [bold cyan]Active Routes[/bold cyan]")
+    console.print(Text("  ").append(Text("   ").join(_active_route_items(config))))
+    console.print()
+
+    console.print("  [bold cyan]Slots[/bold cyan]")
+    _print_slot_table(config, compact=True)
+    if state.history:
+        last = state.history[-1]
+        console.print()
+        console.print(
+            f"  [dim]Last run: {last.status}, slots "
+            f"{','.join(str(slot) for slot in last.requested_slots) or '-'}[/dim]"
+        )
+    console.print()
+
+
+def print_show(config: Any, state: State, *, history_limit: int | None = 3) -> None:
+    """Display the full show output: routes, slot mapping, current slots, history."""
     console.print()
     console.print("  [bold cyan]Active Routes[/bold cyan]")
-    console.print(Text("  ").append(Text("   ").join(route_items)))
+    console.print(Text("  ").append(Text("   ").join(_active_route_items(config))))
     console.print()
 
     console.print("  [bold cyan]Slot Mapping[/bold cyan]")
@@ -61,12 +84,18 @@ def print_show(config: Any, state: State) -> None:
     if not state.history:
         console.print("  [dim](empty)[/dim]")
     else:
-        for i, item in enumerate(reversed(state.history), 1):
+        shown = list(reversed(state.history))[:history_limit]
+        for i, item in enumerate(shown, 1):
             _print_history_compact(item, i)
+        if history_limit is not None and len(state.history) > history_limit:
+            console.print(
+                f"  [dim]showing last {history_limit} of {len(state.history)}; "
+                "use 'fastvex show --full' for all[/dim]"
+            )
     console.print()
 
 
-def _print_slot_table(config: Any) -> None:
+def _print_slot_table(config: Any, *, compact: bool = False) -> None:
     """Print slot mapping: slot -> program name, route key, route name."""
     for slot in range(1, 9):
         resolved = resolve_profile(config, slot)
@@ -74,11 +103,18 @@ def _print_slot_table(config: Any) -> None:
         route_display = f"[{resolved.route_key}] {resolved.route_name}"
         color, _ = role_tone(resolved.route_set, resolved.mode)
 
-        console.print(
-            f"  [white]Slot {slot}[/white]  "
-            f"[{color}]{prog_name}[/{color}]  "
-            f"[dim]{route_display}[/dim]"
-        )
+        if compact:
+            console.print(
+                f"  [white]{slot}[/white]  "
+                f"[dim]{resolved.label:<16}[/dim] "
+                f"[{color}]{prog_name}[/{color}]"
+            )
+        else:
+            console.print(
+                f"  [white]Slot {slot}[/white]  "
+                f"[{color}]{prog_name}[/{color}]  "
+                f"[dim]{route_display}[/dim]"
+            )
 
 
 def _print_current_slots(current: dict[int, StateSlotEntry]) -> None:
@@ -132,13 +168,16 @@ def _print_history_compact(item: ExecutionRecord, index: int) -> None:
     console.print(line)
 
 
-def print_history(hist: list[ExecutionRecord]) -> None:
+def print_history(hist: list[ExecutionRecord], *, limit: int | None = None) -> None:
     """Print the full history list."""
     if not hist:
         console.print("  [dim](empty)[/dim]")
         return
-    for i, item in enumerate(reversed(hist), 1):
+    shown = list(reversed(hist))[:limit]
+    for i, item in enumerate(shown, 1):
         _print_history_compact(item, i)
+    if limit is not None and len(hist) > limit:
+        console.print(f"  [dim]showing last {limit} of {len(hist)}[/dim]")
 
 
 def print_upload_plan(config: Any, slots: list[int]) -> None:
