@@ -47,6 +47,7 @@ def test_missing_config_returns_validation_error(tmp_path: Path, monkeypatch, ca
     assert main(["validate"]) == 2
     captured = capsys.readouterr()
     assert "Config file not found" in captured.err
+    assert "[bold red]" not in captured.err
 
 
 def test_dry_run_upload_writes_default_local_state(robot_project: Path, monkeypatch) -> None:

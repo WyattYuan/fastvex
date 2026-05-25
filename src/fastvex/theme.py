@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from rich.console import Console
-from rich.text import Text
 
 console = Console()
+err_console = Console(stderr=True)
 
 # ─── Status symbols ─────────────────────────────────────────────────────────
 
@@ -30,36 +30,6 @@ def role_tone(route_set: str, mode: str) -> tuple[str, bool]:
     if rs == "skill":
         return ("yellow", False) if not is_debug else ("green",    False)
     return ("cyan", False)
-
-
-def _color_name_to_rich(name: str) -> str:
-    """Map our color names to rich color names."""
-    return name
-
-
-# ─── Text helpers ────────────────────────────────────────────────────────────
-
-
-def c(text: str, color: str) -> Text:
-    """Colorize text using Rich ANSI codes.
-
-    color can be: RESET, BOLD, DIM, CYAN, GREEN, YELLOW, RED, BLUE,
-    MAGENTA, BRIGHT_RED, BRIGHT_GREEN, BRIGHT_YELLOW, BRIGHT_BLUE, BRIGHT_CYAN
-    or a rich color name string.
-    """
-    from rich.style import Style
-    style = Style.parse(color)
-    return Text(text, style=style)
-
-
-def cbold(text: str, color: str) -> Text:
-    from rich.style import Style
-    return Text(text, style=Style.parse(f"bold {color}"))
-
-
-def status_text(text: str, color: str) -> Text:
-    """Create a Rich Text with color for status display."""
-    return Text(text, style=color)
 
 
 # ─── Timestamp ───────────────────────────────────────────────────────────────

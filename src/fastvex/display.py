@@ -31,29 +31,31 @@ def print_show(config: Any, state: State) -> None:
     """Display the full show output: routes, slot mapping, current slots, history."""
     from .theme import role_tone as _rt
 
-    route_items = []
+    route_items: list[Text] = []
     for route_set in sorted(config.active_route.keys()):
         color, _ = _rt(route_set, "COMP")
         key = config.active_route[route_set]
-        route_items.append(Text(f"{route_set}:{key}", style=f"bold {color}"))
+        item = Text()
+        item.append(route_set, style=f"bold {color}")
+        item.append(":")
+        item.append(key, style=color)
+        route_items.append(item)
 
-    print()
-    console.print("  [bold cyan]Active Routes[/bold cyan]")
-    for item in route_items:
-        console.print(f"  {item}", end="  ")
     console.print()
-    print()
+    console.print("  [bold cyan]Active Routes[/bold cyan]")
+    console.print(Text("  ").append(Text("   ").join(route_items)))
+    console.print()
 
     console.print("  [bold cyan]Slot Mapping[/bold cyan]")
     _print_slot_table(config)
-    print()
+    console.print()
 
     console.print("  [bold cyan]Last Known Slots[/bold cyan]")
     if not state.current_slots:
         console.print("  [dim](empty)[/dim]")
     else:
         _print_current_slots(state.current_slots)
-    print()
+    console.print()
 
     console.print("  [bold cyan]Recent History[/bold cyan]")
     if not state.history:
@@ -61,7 +63,7 @@ def print_show(config: Any, state: State) -> None:
     else:
         for i, item in enumerate(reversed(state.history), 1):
             _print_history_compact(item, i)
-    print()
+    console.print()
 
 
 def _print_slot_table(config: Any) -> None:
@@ -170,9 +172,12 @@ def print_execution_result(execution: ExecutionRecord) -> None:
     if execution.dry_run:
         status_display.append(" [dry-run]", style="dim")
 
+    user_line = Text(f"{ROCKET}  ")
+    user_line.append(user_info, style="dim")
+
     lines: list[Text] = [
         status_display,
-        Text(f"{ROCKET}  [dim]{user_info}[/dim]"),
+        user_line,
         Text(f"Duration: {execution.duration_sec}s"),
         Text(f"Slots: {len(execution.results)} total"),
     ]

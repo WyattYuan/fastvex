@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from typing import Annotated
 
 import click
@@ -24,7 +23,7 @@ from .services import (
     validate_project,
 )
 from .storage import ValidationError
-from .theme import FAIL, INFO, OK, WARN, confirm, console
+from .theme import FAIL, INFO, OK, WARN, confirm, console, err_console
 
 CommonConfig = Annotated[str | None, typer.Option("--config", help="Config file path.")]
 CommonState = Annotated[str | None, typer.Option("--state", help="State file path.")]
@@ -39,19 +38,6 @@ route_app = typer.Typer(help="Show or set active route by route set.")
 app.add_typer(history_app, name="history")
 app.add_typer(route_app, name="route")
 
-
-def rprint(*args, **kwargs) -> None:
-    """Rich-aware print: uses console.print unless an explicit file= is given."""
-    file = kwargs.pop("file", None)
-    if file is not None:
-        kwargs.setdefault("sep", " ")
-        kwargs.setdefault("end", "\n")
-        kwargs.setdefault("flush", False)
-        print(*args, file=file, **kwargs)
-    else:
-        console.print(*args, **kwargs)
-
-
 def _ctx_options(ctx: typer.Context, config: str | None, state: str | None) -> dict[str, str | None]:
     obj = ctx.obj or {}
     return {
@@ -62,7 +48,7 @@ def _ctx_options(ctx: typer.Context, config: str | None, state: str | None) -> d
 
 def _print_legacy_warning(legacy_config: bool, config_path: object) -> None:
     if legacy_config:
-        rprint(f"  [yellow]{WARN} using legacy config name:[/yellow] {config_path}")
+        console.print(f"  [yellow]{WARN} using legacy config name:[/yellow] {config_path}")
 
 
 def _finish(code: int) -> None:
@@ -72,7 +58,7 @@ def _finish(code: int) -> None:
 
 def version_callback(value: bool) -> None:
     if value:
-        rprint(f"fastvex {__version__}")
+        console.print(f"fastvex {__version__}")
         raise typer.Exit()
 
 
@@ -106,16 +92,16 @@ def run_default_interactive(config: str | None = None, state: str | None = None)
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
     print_show(report.config, report.state)
 
-    rprint("  [bold cyan]Select upload target:[/bold cyan]")
-    rprint("    [dim]slot list[/dim]  e.g. [green]1,3,5[/green]")
-    rprint("    [dim]group:name[/dim]  e.g. [green]group:comp-default[/green]")
-    rprint("    [dim]all[/dim]         upload all enabled slots")
-    rprint("    [dim]q[/dim]           quit")
-    rprint()
+    console.print("  [bold cyan]Select upload target:[/bold cyan]")
+    console.print("    [dim]slot list[/dim]  e.g. [green]1,3,5[/green]")
+    console.print("    [dim]group:name[/dim]  e.g. [green]group:comp-default[/green]")
+    console.print("    [dim]all[/dim]         upload all enabled slots")
+    console.print("    [dim]q[/dim]           quit")
+    console.print()
 
     raw = console.input("  [cyan]target[/cyan]> ").strip()
     if not raw or raw.lower() in {"q", "quit", "exit"}:
-        rprint("\n  [blue]bye[/blue]\n")
+        console.print("\n  [blue]bye[/blue]\n")
         return 0
 
     request = _upload_request()
@@ -134,7 +120,7 @@ def run_default_interactive(config: str | None = None, state: str | None = None)
         "  [yellow]Continue upload?[/yellow] [[green]Y[/green]/[red]n[/red]] (Enter for 'Y'): ",
         default_yes=True,
     ):
-        rprint(f"\n  [yellow]{WARN} aborted[/yellow]\n")
+        console.print(f"\n  [yellow]{WARN} aborted[/yellow]\n")
         return 0
 
     report = upload_slots(request, config=config, state=state)
@@ -168,19 +154,19 @@ def init_command(
     report = init_project(**options)
 
     if report.config_exists:
-        rprint(f"  [cyan]config exists:[/cyan] {report.paths.config}")
+        console.print(f"  [cyan]config exists:[/cyan] {report.paths.config}")
     elif report.legacy_config_exists:
-        rprint(f"  [yellow]{WARN} legacy config exists:[/yellow] {report.paths.root / 'vex_upload_config.yaml'}")
-        rprint("  [dim]fastvex init will not migrate or overwrite configs.[/dim]")
+        console.print(f"  [yellow]{WARN} legacy config exists:[/yellow] {report.paths.root / 'vex_upload_config.yaml'}")
+        console.print("  [dim]fastvex init will not migrate or overwrite configs.[/dim]")
     elif report.config_created:
-        rprint(f"  [green]created config:[/green] {report.paths.config}")
+        console.print(f"  [green]created config:[/green] {report.paths.config}")
 
     if report.state_exists:
-        rprint(f"  [cyan]state exists:[/cyan] {report.paths.state}")
+        console.print(f"  [cyan]state exists:[/cyan] {report.paths.state}")
     elif report.state_created:
-        rprint(f"  [green]created state:[/green] {report.paths.state}")
+        console.print(f"  [green]created state:[/green] {report.paths.state}")
 
-    rprint(f"\n  [bold green]{OK} init ok[/bold green]\n")
+    console.print(f"\n  [bold green]{OK} init ok[/bold green]\n")
 
 
 @app.command("show")
@@ -203,8 +189,8 @@ def validate_command(
     report = validate_project(**_ctx_options(ctx, config, state))
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
     for warning in report.warnings:
-        rprint(f"  {WARN} {warning}")
-    rprint(f"\n  [bold green]{OK} validate ok[/bold green]\n")
+        console.print(f"  {WARN} {warning}")
+    console.print(f"\n  [bold green]{OK} validate ok[/bold green]\n")
 
 
 @app.command("toolchain")
@@ -214,16 +200,16 @@ def toolchain_command(
     report: ToolchainReport = show_toolchain(rescan=rescan)
 
     if not report.cache.pros_path:
-        rprint(f"  [yellow]{WARN} PROS not found[/yellow]")
-        rprint("  [dim]Searched via 'which pros' — run from PROS Terminal first to cache the path.[/dim]")
+        err_console.print(f"  [yellow]{WARN} PROS not found[/yellow]")
+        err_console.print("  [dim]Searched via 'which pros' — run from PROS Terminal first to cache the path.[/dim]")
         _finish(1)
         return
 
     status = "rescanned" if report.rediscovered else "cached"
-    rprint(f"  [green]{OK} PROS found ({status}):[/green]")
-    rprint(f"    path: {report.cache.pros_path}")
+    console.print(f"  [green]{OK} PROS found ({status}):[/green]")
+    console.print(f"    path: {report.cache.pros_path}")
     if report.cache.discovered_at:
-        rprint(f"    cached: {report.cache.discovered_at}")
+        console.print(f"    cached: {report.cache.discovered_at}")
 
 
 @app.command("upload")
@@ -265,7 +251,7 @@ def upload_command(
             "  [yellow]Continue upload?[/yellow] [[green]Y[/green]/[red]n[/red]] (Enter for 'Y'): ",
             default_yes=True,
         ):
-            rprint(f"\n  [yellow]{WARN} aborted[/yellow]\n")
+            console.print(f"\n  [yellow]{WARN} aborted[/yellow]\n")
             return
 
     report = upload_slots(request, **options)
@@ -295,9 +281,9 @@ def history_show_command(
 ) -> None:
     report = get_history(**_ctx_options(ctx, config, state))
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
-    rprint()
+    console.print()
     if not report.state.history:
-        rprint("  [dim](empty)[/dim]")
+        console.print("  [dim](empty)[/dim]")
     else:
         print_history(report.state.history)
 
@@ -312,9 +298,9 @@ def history_clean_command(
     report: HistoryCleanReport = clean_history(**_ctx_options(ctx, config, state), keep=keep)
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
     if report.removed_count == 0:
-        rprint(f"  [dim]history has {report.kept_count} entries, no cleanup needed (keep={keep})[/dim]")
+        console.print(f"  [dim]history has {report.kept_count} entries, no cleanup needed (keep={keep})[/dim]")
     else:
-        rprint(
+        console.print(
             f"  [green]{OK} cleaned[/green] {report.removed_count} "
             f"[dim]old entries, kept last[/dim] {report.kept_count}"
         )
@@ -339,38 +325,45 @@ def route_show_command(
     config: CommonConfig = None,
     state: CommonState = None,
 ) -> None:
+    from rich.text import Text
     from .theme import role_tone
 
     report = show_routes(**_ctx_options(ctx, config, state))
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
     loaded_config = report.config
 
-    rprint()
-    route_items = []
+    console.print()
+    route_items: list[Text] = []
     for route_set in sorted(loaded_config.active_route.keys()):
         color, _ = role_tone(route_set, "COMP")
         key = loaded_config.active_route[route_set]
-        route_items.append(f"[bold {color}]{route_set}[/bold {color}]:[{color}]{key}[/{color}]")
+        item = Text()
+        item.append(route_set, style=f"bold {color}")
+        item.append(":")
+        item.append(key, style=color)
+        route_items.append(item)
 
-    rprint("  [bold cyan]Active Routes[/bold cyan]")
-    rprint(f"  {'   '.join(route_items)}")
-    rprint()
+    console.print("  [bold cyan]Active Routes[/bold cyan]")
+    console.print(Text("  ").append(Text("   ").join(route_items)))
+    console.print()
 
-    rprint("  [bold cyan]Available Routes[/bold cyan]")
+    console.print("  [bold cyan]Available Routes[/bold cyan]")
     for route_set in sorted(loaded_config.routes.keys()):
         color, _ = role_tone(route_set, "COMP")
         active_key = loaded_config.active_route.get(route_set)
 
-        rprint(f"\n  [bold {color}]{route_set}[/bold {color}]")
+        header = Text("\n  ")
+        header.append(route_set, style=f"bold {color}")
+        console.print(header)
         for key, opt in loaded_config.routes[route_set].items():
             is_active = key == active_key
             marker = f"[green]{OK}[/green] " if is_active else "    "
             active_tag = " [green](active)[/green]" if is_active else ""
-            rprint(
+            console.print(
                 f"    {marker}[cyan]{key}[/cyan]  "
                 f"route={opt.route}  routeName={opt.route_name}{active_tag}"
             )
-    rprint()
+    console.print()
 
 
 @route_app.command("set")
@@ -381,20 +374,23 @@ def route_set_command(
     config: CommonConfig = None,
     state: CommonState = None,
 ) -> None:
+    from rich.text import Text
     from .theme import role_tone
 
     report = set_route(route_set, route_key, **_ctx_options(ctx, config, state))
     _print_legacy_warning(report.paths.legacy_config, report.paths.config)
     if not report.changed:
-        rprint(f"\n  [dim]{INFO} route unchanged:[/dim] {report.route_set}={report.new_key}\n")
+        console.print(f"\n  [dim]{INFO} route unchanged:[/dim] {report.route_set}={report.new_key}\n")
         return
 
     color, _ = role_tone(report.route_set, "COMP")
-    rprint(
-        f"\n  [bold green]{OK} updated active route:[/bold green] "
-        f"[bold {color}]{report.route_set}[/bold {color}] [dim]{report.old_key}[/dim] "
-        f"[cyan]→[/cyan] [bold {color}]{report.new_key}[/bold {color}]\n"
-    )
+    msg = Text("\n  ")
+    msg.append(f"{OK} updated active route: ", style="bold green")
+    msg.append(f"{report.route_set} ", style=f"bold {color}")
+    msg.append(f"{report.old_key} ", style="dim")
+    msg.append("→ ", style="cyan")
+    msg.append(f"{report.new_key}\n", style=f"bold {color}")
+    console.print(msg)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -404,10 +400,10 @@ def main(argv: list[str] | None = None) -> int:
     except click.exceptions.Exit as exc:
         return int(exc.exit_code)
     except ValidationError as exc:
-        print(f"\n  [bold red]{FAIL} validation error:[/bold red] {exc}\n", file=sys.stderr)
+        err_console.print(f"\n  [bold red]{FAIL} validation error:[/bold red] {exc}\n")
         return 2
     except KeyboardInterrupt:
-        print(f"\n  [yellow]{WARN} interrupted[/yellow]\n", file=sys.stderr)
+        err_console.print(f"\n  [yellow]{WARN} interrupted[/yellow]\n")
         return 130
 
 
