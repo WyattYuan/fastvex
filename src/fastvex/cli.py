@@ -6,6 +6,7 @@ from typing import Annotated
 import click
 import typer
 
+from . import __version__
 from .display import print_execution_result, print_history, print_show, print_upload_plan
 from .services import (
     HistoryCleanReport,
@@ -67,6 +68,12 @@ def _print_legacy_warning(legacy_config: bool, config_path: object) -> None:
 def _finish(code: int) -> None:
     if code:
         raise typer.Exit(code)
+
+
+def version_callback(value: bool) -> None:
+    if value:
+        rprint(f"fastvex {__version__}")
+        raise typer.Exit()
 
 
 def _upload_request(
@@ -141,6 +148,10 @@ def root(
     ctx: typer.Context,
     config: CommonConfig = None,
     state: CommonState = None,
+    version: Annotated[
+        bool | None,
+        typer.Option("--version", "-v", callback=version_callback, is_eager=True, help="Show version.")
+    ] = None,
 ) -> None:
     ctx.obj = {"config": config, "state": state}
     if ctx.invoked_subcommand is None:
