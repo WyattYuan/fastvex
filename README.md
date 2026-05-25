@@ -18,7 +18,10 @@ uvx fastvex
 ```powershell
 uv tool install fastvex
 fastvex
+fvx
 ```
+
+安装后也可以使用短命令 `fvx`，它和 `fastvex` 等价。
 
 本仓库本地开发时：
 
@@ -34,6 +37,7 @@ uv run ruff check .
 
 ```powershell
 fastvex validate
+fvx validate
 fastvex show
 fastvex upload --slots 1,3 -y
 fastvex route show

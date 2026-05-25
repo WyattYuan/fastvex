@@ -14,6 +14,7 @@ dependencies = [
 
 [project.scripts]
 fastvex = "fastvex.cli:main"
+fvx = "fastvex.cli:main"
 
 [dependency-groups]
 dev = [

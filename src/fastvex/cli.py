@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Annotated
 
 import click
@@ -393,9 +395,13 @@ def route_set_command(
     console.print(msg)
 
 
-def main(argv: list[str] | None = None) -> int:
+def _prog_name() -> str:
+    return Path(sys.argv[0]).stem or "fastvex"
+
+
+def main(argv: list[str] | None = None, prog_name: str | None = None) -> int:
     try:
-        app(args=argv, prog_name="fastvex", standalone_mode=False)
+        app(args=argv, prog_name=prog_name or _prog_name(), standalone_mode=False)
         return 0
     except click.exceptions.Exit as exc:
         return int(exc.exit_code)

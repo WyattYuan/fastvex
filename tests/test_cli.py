@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tomllib
 from pathlib import Path
 
 from fastvex.cli import main
@@ -24,6 +25,21 @@ def test_validate_finds_config_from_child_directory(robot_project: Path, monkeyp
     monkeypatch.chdir(child)
 
     assert main(["validate"]) == 0
+
+
+def test_fvx_console_script_alias_is_published() -> None:
+    metadata = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+
+    assert metadata["project"]["scripts"]["fastvex"] == "fastvex.cli:main"
+    assert metadata["project"]["scripts"]["fvx"] == "fastvex.cli:main"
+
+
+def test_help_uses_invoked_program_name(capsys) -> None:
+    assert main(["--help"], prog_name="fvx") == 0
+
+    captured = capsys.readouterr()
+    assert "Usage:" in captured.out
+    assert "fvx" in captured.out
 
 
 def test_validate_accepts_global_config_before_command(robot_project: Path, monkeypatch) -> None:
