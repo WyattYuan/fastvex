@@ -101,6 +101,7 @@ def test_profile_switch_touches_compile_time_dependent_sources(robot_project: Pa
                 "results": [
                     {
                         "profileId": "red-debug:r0",
+                        "build": {"ok": True},
                         "upload": {"ok": True},
                     }
                 ]
@@ -111,6 +112,52 @@ def test_profile_switch_touches_compile_time_dependent_sources(robot_project: Pa
     execute_upload(robot_project, config, state, _options([3]), FakeRunner())
 
     assert source.stat().st_mtime_ns > before
+
+
+def test_profile_switch_tracks_successful_build_even_when_upload_fails(
+    robot_project: Path,
+    monkeypatch,
+) -> None:
+    config = load_config(robot_project / "fastvex.yaml")
+    state = State.model_validate({
+        "history": [
+            {
+                "results": [
+                    {
+                        "profileId": "red-comp:r0",
+                        "build": {"ok": True},
+                    }
+                ]
+            }
+        ]
+    })
+
+    class TouchProbe:
+        def __init__(self) -> None:
+            self.count = 0
+
+        def touch(self) -> None:
+            self.count += 1
+
+    probe = TouchProbe()
+    monkeypatch.setattr(
+        executor,
+        "find_compile_time_dependent_sources",
+        lambda project_root: [probe],
+    )
+
+    runner = FakeRunner(
+        {
+            ("pros", "upload", "--slot", "4", "--name", "BlueComp-Sparkle"): CommandResult(
+                1,
+                "upload failed",
+            )
+        }
+    )
+
+    execute_upload(robot_project, config, state, _options([4, 3]), runner)
+
+    assert probe.count == 2
 
 
 def test_state_model_reads_json_slot_keys_as_ints() -> None:

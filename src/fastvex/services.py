@@ -9,7 +9,7 @@ from .project import DEFAULT_CONFIG, DEFAULT_STATE, LEGACY_CONFIG, ProjectPaths,
 from .state_model import ExecutionRecord, State
 from .storage import ValidationError, default_state, load_config, load_state, save_state
 from .templates import DEFAULT_CONFIG_TEXT
-from .toolchain import ToolchainCache, get_toolchain_env, resolve_toolchain, save_toolchain
+from .toolchain import ToolchainCache, get_toolchain_env, resolve_toolchain
 
 
 @dataclass(frozen=True)

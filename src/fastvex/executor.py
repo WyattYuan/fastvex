@@ -37,11 +37,11 @@ def find_compile_time_dependent_sources(project_root: Path) -> list[Path]:
     return matched
 
 
-def _last_uploaded_profile_id(state: State) -> str | None:
-    """Return the profileId of the most recent successful upload across all slots."""
+def _last_built_profile_id(state: State) -> str | None:
+    """Return the profileId of the most recent successful build."""
     for execution in reversed(state.history):
         for result in reversed(execution.results):
-            if result.upload.ok and result.profile_id:
+            if result.build.ok and result.profile_id:
                 return result.profile_id
     return None
 
@@ -183,7 +183,7 @@ def execute_upload(
     before_slots = dict(state.current_slots)
     results: list[SlotExecutionResult] = []
     current_slots = dict(before_slots)
-    last_uploaded_profile_id = _last_uploaded_profile_id(state)
+    last_built_profile_id = _last_built_profile_id(state)
 
     touch_files = find_compile_time_dependent_sources(project_root)
 
@@ -210,8 +210,8 @@ def execute_upload(
             continue
 
         profile_switched = (
-            last_uploaded_profile_id is not None
-            and last_uploaded_profile_id != profile.profile_id
+            last_built_profile_id is not None
+            and last_built_profile_id != profile.profile_id
         )
 
         # Build output depends on profile, not slot.
@@ -238,6 +238,7 @@ def execute_upload(
                 slot_result.build.error = "build failed"
             results.append(slot_result)
             continue
+        last_built_profile_id = profile.profile_id
 
         upload_args = ["pros", "upload", "--slot", str(slot), "--name", final_name]
         if options.port:
@@ -256,7 +257,6 @@ def execute_upload(
         if result.returncode != 0:
             results.append(slot_result)
             continue
-        last_uploaded_profile_id = profile.profile_id
 
         now = utc_now_iso()
         current_slots[slot] = StateSlotEntry.from_profile(profile, final_name, now)
