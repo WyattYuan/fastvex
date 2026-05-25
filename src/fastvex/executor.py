@@ -78,15 +78,20 @@ def _resolve_executable(command: str) -> str:
 
 
 class SubprocessRunner(CommandRunner):
+    def __init__(self, toolchain_env: dict[str, str] | None = None) -> None:
+        self._toolchain_env = toolchain_env or {}
+
     def run(self, args: list[str], cwd: Path, quiet: bool) -> CommandResult:
         resolved_args = list(args)
         resolved_args[0] = _resolve_executable(resolved_args[0])
+        env = {**os.environ, **self._toolchain_env} if self._toolchain_env else None
         proc = subprocess.run(
             resolved_args,
             cwd=str(cwd),
             text=True,
             capture_output=quiet,
             check=False,
+            env=env,
         )
         out = ""
         if quiet:
@@ -169,8 +174,9 @@ def execute_upload(
     state: State,
     options: RunOptions,
     runner: CommandRunner | None = None,
+    toolchain_env: dict[str, str] | None = None,
 ) -> ExecutionRecord:
-    runner = runner or SubprocessRunner()
+    runner = runner or SubprocessRunner(toolchain_env=toolchain_env)
     start_ts = utc_now_iso()
     started = time.perf_counter()
 

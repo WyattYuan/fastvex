@@ -9,6 +9,7 @@ from .project import DEFAULT_CONFIG, DEFAULT_STATE, LEGACY_CONFIG, ProjectPaths,
 from .state_model import ExecutionRecord, State
 from .storage import ValidationError, default_state, load_config, load_state, save_state
 from .templates import DEFAULT_CONFIG_TEXT
+from .toolchain import ToolchainCache, get_toolchain_env, resolve_toolchain, save_toolchain
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,12 @@ class RouteSetReport:
     old_key: str
     new_key: str
     changed: bool
+
+
+@dataclass(frozen=True)
+class ToolchainReport:
+    cache: ToolchainCache
+    rediscovered: bool
 
 
 def parse_slot_expr(expr: str) -> list[int]:
@@ -211,6 +218,8 @@ def upload_slots(
     state: str | None = None,
 ) -> UploadReport:
     paths, loaded_config, loaded_state, slots, robot_name, port = plan_upload(request, config, state)
+    toolchain = resolve_toolchain()
+    toolchain_env = get_toolchain_env(toolchain)
     execution = execute_upload(
         project_root=paths.root,
         config=loaded_config,
@@ -224,6 +233,7 @@ def upload_slots(
             dry_run=request.dry_run,
             yes=request.yes,
         ),
+        toolchain_env=toolchain_env,
     )
     save_state(paths.state, loaded_state)
 
@@ -283,3 +293,19 @@ def set_route(
         new_key=route_key,
         changed=True,
     )
+
+
+def show_toolchain(rescan: bool = False) -> ToolchainReport:
+    from .toolchain import _global_toolchain_path
+
+    old_cache = resolve_toolchain()
+
+    if rescan:
+        cache_path = _global_toolchain_path()
+        if cache_path.is_file():
+            cache_path.unlink()
+        old_cache = ToolchainCache()
+
+    new_cache = resolve_toolchain()
+    rediscovered = old_cache.pros_path != new_cache.pros_path
+    return ToolchainReport(cache=new_cache, rediscovered=rediscovered)

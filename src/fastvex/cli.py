@@ -9,6 +9,7 @@ import typer
 from .display import print_execution_result, print_history, print_show, print_upload_plan
 from .services import (
     HistoryCleanReport,
+    ToolchainReport,
     UploadRequest,
     clean_history,
     get_history,
@@ -17,6 +18,7 @@ from .services import (
     set_route,
     show_project,
     show_routes,
+    show_toolchain,
     upload_slots,
     validate_project,
 )
@@ -192,6 +194,25 @@ def validate_command(
     for warning in report.warnings:
         rprint(f"  {WARN} {warning}")
     rprint(f"\n  [bold green]{OK} validate ok[/bold green]\n")
+
+
+@app.command("toolchain")
+def toolchain_command(
+    rescan: Annotated[bool, typer.Option("--rescan", help="Force re-scan, ignore cache.")] = False,
+) -> None:
+    report: ToolchainReport = show_toolchain(rescan=rescan)
+
+    if not report.cache.pros_path:
+        rprint(f"  [yellow]{WARN} PROS not found[/yellow]")
+        rprint("  [dim]Searched via 'which pros' — run from PROS Terminal first to cache the path.[/dim]")
+        _finish(1)
+        return
+
+    status = "rescanned" if report.rediscovered else "cached"
+    rprint(f"  [green]{OK} PROS found ({status}):[/green]")
+    rprint(f"    path: {report.cache.pros_path}")
+    if report.cache.discovered_at:
+        rprint(f"    cached: {report.cache.discovered_at}")
 
 
 @app.command("upload")
