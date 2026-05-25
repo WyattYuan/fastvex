@@ -99,7 +99,7 @@ class SlotBinding(FastVexModel):
 
 class Config(FastVexModel):
     schema_version: int = Field(1, alias="schemaVersion")
-    defaults: Defaults = Field(default_factory=Defaults)
+    defaults: Defaults = Field(default_factory=Defaults) #type: ignore
     roles: dict[str, Role]
     routes: dict[str, dict[str, RouteOption]]
     active_route: dict[str, str] = Field(alias="activeRoute")
