@@ -4,6 +4,7 @@ import shutil
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 
@@ -21,6 +22,9 @@ from .storage import (
     save_settings,
     save_state,
 )
+
+if TYPE_CHECKING:
+    from .toolchain import ToolchainCache
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,22 @@ def _backup_v1(path: Path) -> None:
         return
     backup = path.with_name(f"{path.stem}.v1.backup.{_timestamp()}{path.suffix}")
     shutil.copy2(path, backup)
+
+
+def _recover_interrupted_execution(state: State) -> bool:
+    execution = state.active_execution
+    if execution is None or execution.status != "running":
+        return False
+
+    ended_at = utc_now_iso()
+    execution.status = "interrupted"
+    execution.ended_at = ended_at
+    state.active_execution = None
+    state.updated_at = ended_at
+    history = list(state.history)
+    history.append(execution)
+    state.history = history[-default_settings().history_retention_count:]
+    return True
 
 
 def init_project(
@@ -249,12 +269,15 @@ def validate_config(config: Config) -> list[str]:
 
 def _load_state_resilient(path: Path) -> State:
     try:
-        return load_state(path)
+        state = load_state(path)
     except ValidationError:
         _backup(path, tag="corrupt")
         state = default_state()
         save_state(path, state)
         return state
+    if _recover_interrupted_execution(state):
+        save_state(path, state)
+    return state
 
 
 def show_project(config: str | None = None, state: str | None = None) -> ShowReport:
@@ -385,6 +408,11 @@ def deploy_slots(
 
     toolchain = resolve_toolchain()
     toolchain_env = get_toolchain_env(toolchain)
+
+    def checkpoint(execution: ExecutionRecord) -> None:
+        plan.state.active_execution = execution
+        save_state(plan.paths.state, plan.state)
+
     execution = execute_deploy(
         project_root=plan.paths.root,
         config=plan.config,
@@ -398,12 +426,14 @@ def deploy_slots(
             yes=request.yes,
         ),
         toolchain_env=toolchain_env,
+        checkpoint=None if request.dry_run else checkpoint,
     )
     execution.skipped_empty_slots = plan.skipped_empty_slots
     if not request.dry_run:
         history = list(plan.state.history)
         history.append(execution)
         plan.state.history = history[-plan.settings.history_retention_count:]
+        plan.state.active_execution = None
         save_state(plan.paths.state, plan.state)
 
     failed = [

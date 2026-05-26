@@ -93,6 +93,7 @@ class State(StateModel):
     updated_at: str | None = None
     last_port: str = ""
     last_build_signature: BuildSignature | None = None
+    active_execution: ExecutionRecord | None = None
     current_slots: dict[int, StateSlotEntry] = Field(default_factory=dict)
     history: list[ExecutionRecord] = Field(default_factory=list)
 

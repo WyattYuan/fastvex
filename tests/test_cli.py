@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import fastvex.cli as cli
 from fastvex.cli import main
@@ -228,7 +229,7 @@ def test_deploy_uses_fake_pros_tools(
 
 def test_default_command_uses_compact_dashboard(robot_project: Path, monkeypatch, capsys) -> None:
     monkeypatch.chdir(robot_project)
-    monkeypatch.setattr(cli.console, "input", lambda prompt: "q")
+    monkeypatch.setattr(cli, "console", SimpleNamespace(input=lambda prompt: "q", print=lambda *args, **kwargs: None))
 
     assert main([]) == 0
 

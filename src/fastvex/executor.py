@@ -5,6 +5,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .models import Config, ResolvedSlot, build_arg_strings, resolve_slot, utc_now_iso
 from .state_model import (
@@ -161,6 +162,7 @@ def execute_deploy(
     options: RunOptions,
     runner: CommandRunner | None = None,
     toolchain_env: dict[str, str] | None = None,
+    checkpoint: Callable[[ExecutionRecord], None] | None = None,
 ) -> ExecutionRecord:
     runner = runner or SubprocessRunner(toolchain_env=toolchain_env)
     start_ts = utc_now_iso()
@@ -174,6 +176,27 @@ def execute_deploy(
     uploads: list[UploadRecord] = []
     built: dict[str, BuildRecord] = {}
     current_slots = dict(state.current_slots)
+    execution = ExecutionRecord(
+        started_at=start_ts,
+        status="running",
+        port=options.port,
+        requested_slots=options.slots,
+        builds=builds,
+        uploads=uploads,
+        dry_run=options.dry_run,
+        username=get_git_username(),
+        hostname=get_hostname(),
+    )
+
+    def checkpoint_now() -> None:
+        execution.builds = builds
+        execution.uploads = uploads
+        if checkpoint is None:
+            return
+        checkpoint(execution)
+
+    if not options.dry_run:
+        checkpoint_now()
 
     for slot in deploy_slots:
         signature = BuildSignature.from_slot(slot)
@@ -210,6 +233,7 @@ def execute_deploy(
 
                 if build.step.ok:
                     state.last_build_signature = signature
+                checkpoint_now()
 
         upload = UploadRecord(
             slot=slot.slot,
@@ -227,6 +251,7 @@ def execute_deploy(
             upload.status = "skipped"
             upload.reason = "buildFailed"
             uploads.append(upload)
+            checkpoint_now()
             continue
 
         upload_args = ["pros", "upload", "--slot", str(slot.slot), "--name", slot.program_name]
@@ -247,6 +272,7 @@ def execute_deploy(
         if upload.step.ok:
             current_slots[slot.slot] = StateSlotEntry.from_slot(slot, utc_now_iso())
         uploads.append(upload)
+        checkpoint_now()
 
     failures = [
         upload
@@ -258,24 +284,15 @@ def execute_deploy(
     status = "success" if all_ok else ("partial" if any_ok else "failed")
 
     end_ts = utc_now_iso()
-    execution = ExecutionRecord(
-        started_at=start_ts,
-        ended_at=end_ts,
-        status=status,
-        port=options.port,
-        requested_slots=options.slots,
-        builds=builds,
-        uploads=uploads,
-        duration_sec=round(time.perf_counter() - started, 2),
-        dry_run=options.dry_run,
-        username=get_git_username(),
-        hostname=get_hostname(),
-    )
+    execution.ended_at = end_ts
+    execution.status = status
+    execution.duration_sec = round(time.perf_counter() - started, 2)
 
     if not options.dry_run:
         state.current_slots = current_slots
         state.updated_at = end_ts
         if not state.created_at:
             state.created_at = start_ts
+        checkpoint_now()
 
     return execution

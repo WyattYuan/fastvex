@@ -56,6 +56,29 @@ def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
     assert 3 in state.current_slots
 
 
+def test_execute_deploy_checkpoints_confirmed_progress(robot_project: Path) -> None:
+    config = load_config(robot_project / "fastvex.yaml")
+    state = State()
+    runner = FakeRunner()
+    checkpoints = []
+
+    execute_deploy(
+        robot_project,
+        config,
+        state,
+        _options([3]),
+        runner,
+        checkpoint=lambda execution: checkpoints.append(execution.model_copy(deep=True)),
+    )
+
+    assert checkpoints[0].status == "running"
+    assert checkpoints[0].builds == []
+    assert checkpoints[1].builds[0].step.ok is True
+    assert checkpoints[1].uploads == []
+    assert checkpoints[-1].status == "success"
+    assert checkpoints[-1].uploads[0].status == "success"
+
+
 def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None:
     monkeypatch.setattr(executor.os, "cpu_count", lambda: 1)
     config = load_config(robot_project / "fastvex.yaml")
