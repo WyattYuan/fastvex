@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import fastvex.executor as executor
-from fastvex.executor import CommandResult, CommandRunner, RunOptions, execute_upload
+from fastvex.executor import CommandResult, CommandRunner, RunOptions, execute_deploy
+from fastvex.state_model import BuildSignature
 from fastvex.state_model import State
 from fastvex.storage import load_config
 
@@ -22,7 +23,6 @@ class FakeRunner(CommandRunner):
 def _options(slots: list[int], *, dry_run: bool = False) -> RunOptions:
     return RunOptions(
         slots=slots,
-        robot_name="Sparkle",
         port="",
         clean=False,
         quiet=True,
@@ -31,27 +31,27 @@ def _options(slots: list[int], *, dry_run: bool = False) -> RunOptions:
     )
 
 
-def test_execute_upload_calls_build_then_upload(robot_project: Path) -> None:
+def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
     config = load_config(robot_project / "fastvex.yaml")
     state = State()
     runner = FakeRunner()
 
-    execution = execute_upload(robot_project, config, state, _options([3]), runner)
+    execution = execute_deploy(robot_project, config, state, _options([3]), runner)
 
     assert execution.status == "success"
-    assert execution.results[0].build.command == ["pros", "make", "MODE=RED_COMP", "ROUTE=0"]
-    assert execution.results[0].build.returncode == 0
-    assert execution.results[0].upload.command == [
+    assert execution.builds[0].step.command == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
+    assert execution.builds[0].step.returncode == 0
+    assert execution.uploads[0].step.command == [
         "pros",
         "upload",
         "--slot",
         "3",
         "--name",
-        "RedComp-Sparkle",
+        "skillComp-main-Sparkle",
     ]
     assert runner.calls == [
-        ["pros", "make", "MODE=RED_COMP", "ROUTE=0"],
-        ["pros", "upload", "--slot", "3", "--name", "RedComp-Sparkle"],
+        ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"],
+        ["pros", "upload", "--slot", "3", "--name", "skillComp-main-Sparkle"],
     ]
     assert 3 in state.current_slots
 
@@ -62,12 +62,12 @@ def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None
     state = State()
     runner = FakeRunner(
         {
-            ("pros", "make", "MODE=RED_COMP", "ROUTE=0"): CommandResult(1, "pros failed"),
-            ("make", "MODE=RED_COMP", "ROUTE=0", "-j1"): CommandResult(1, "make failed"),
+            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "pros failed"),
+            ("make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "make failed"),
         }
     )
 
-    execution = execute_upload(robot_project, config, state, _options([3]), runner)
+    execution = execute_deploy(robot_project, config, state, _options([3]), runner)
 
     assert execution.status == "failed"
     assert not any(call[:2] == ["pros", "upload"] for call in runner.calls)
@@ -79,7 +79,7 @@ def test_dry_run_does_not_call_runner(robot_project: Path) -> None:
     state = State()
     runner = FakeRunner()
 
-    execution = execute_upload(robot_project, config, state, _options([3], dry_run=True), runner)
+    execution = execute_deploy(robot_project, config, state, _options([3], dry_run=True), runner)
 
     assert execution.status == "success"
     assert runner.calls == []
@@ -95,21 +95,10 @@ def test_profile_switch_touches_compile_time_dependent_sources(robot_project: Pa
 
     os.utime(source_stat_path, (old_time, old_time))
     before = source.stat().st_mtime_ns
-    state = State.model_validate({
-        "history": [
-            {
-                "results": [
-                    {
-                        "profileId": "red-debug:r0",
-                        "build": {"ok": True},
-                        "upload": {"ok": True},
-                    }
-                ]
-            }
-        ]
-    })
+    state = State()
+    state.last_build_signature = BuildSignature(profile="redDebug", route="left", build_args=[])
 
-    execute_upload(robot_project, config, state, _options([3]), FakeRunner())
+    execute_deploy(robot_project, config, state, _options([3]), FakeRunner())
 
     assert source.stat().st_mtime_ns > before
 
@@ -119,18 +108,7 @@ def test_profile_switch_tracks_successful_build_even_when_upload_fails(
     monkeypatch,
 ) -> None:
     config = load_config(robot_project / "fastvex.yaml")
-    state = State.model_validate({
-        "history": [
-            {
-                "results": [
-                    {
-                        "profileId": "red-comp:r0",
-                        "build": {"ok": True},
-                    }
-                ]
-            }
-        ]
-    })
+    state = State()
 
     class TouchProbe:
         def __init__(self) -> None:
@@ -148,14 +126,14 @@ def test_profile_switch_tracks_successful_build_even_when_upload_fails(
 
     runner = FakeRunner(
         {
-            ("pros", "upload", "--slot", "4", "--name", "BlueComp-Sparkle"): CommandResult(
+            ("pros", "upload", "--slot", "4", "--name", "redDebug-left-Sparkle"): CommandResult(
                 1,
                 "upload failed",
             )
         }
     )
 
-    execute_upload(robot_project, config, state, _options([4, 3]), runner)
+    execute_deploy(robot_project, config, state, _options([4, 3]), runner)
 
     assert probe.count == 2
 
@@ -165,15 +143,10 @@ def test_state_model_reads_json_slot_keys_as_ints() -> None:
         {
             "currentSlots": {
                 "3": {
-                    "profileId": "red-comp:r0",
-                    "roleId": "red-comp",
-                    "routeSet": "red",
-                    "routeKey": "r0",
-                    "mode": "RED_COMP",
-                    "route": 0,
-                    "routeName": "Default",
-                    "label": "Red Comp",
-                    "finalName": "RedComp-Sparkle",
+                    "profile": "skillComp",
+                    "alliance": "skill",
+                    "route": "main",
+                    "programName": "skillComp-main-Sparkle",
                     "uploadedAt": "2026-05-25T17:00:00+08:00",
                 }
             }

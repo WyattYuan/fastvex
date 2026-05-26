@@ -1,7 +1,7 @@
 [project]
 name = "fastvex"
-version = "0.0.2"
-description = "Fast VEX V5 slot-oriented build and upload CLI"
+version = "0.1.0"
+description = "Fast VEX V5 slot-oriented deploy CLI"
 license = "MIT"
 readme = "README.md"
 requires-python = ">=3.11"

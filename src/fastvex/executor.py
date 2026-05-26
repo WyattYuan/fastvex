@@ -6,8 +6,16 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .models import Config, Profile, mode_to_camel, resolve_profile, utc_now_iso
-from .state_model import ExecutionRecord, SlotExecutionResult, State, StateSlotEntry, StepRecord
+from .models import Config, ResolvedSlot, build_arg_strings, resolve_slot, utc_now_iso
+from .state_model import (
+    BuildRecord,
+    BuildSignature,
+    ExecutionRecord,
+    State,
+    StateSlotEntry,
+    StepRecord,
+    UploadRecord,
+)
 from .storage import get_git_username, get_hostname
 
 
@@ -35,15 +43,6 @@ def find_compile_time_dependent_sources(project_root: Path) -> list[Path]:
         except OSError:
             continue
     return matched
-
-
-def _last_built_profile_id(state: State) -> str | None:
-    """Return the profileId of the most recent successful build."""
-    for execution in reversed(state.history):
-        for result in reversed(execution.results):
-            if result.build.ok and result.profile_id:
-                return result.profile_id
-    return None
 
 
 @dataclass
@@ -102,7 +101,6 @@ class SubprocessRunner(CommandRunner):
 @dataclass
 class RunOptions:
     slots: list[int]
-    robot_name: str
     port: str
     clean: bool
     quiet: bool
@@ -110,26 +108,13 @@ class RunOptions:
     yes: bool
 
 
-def render_final_name(config: Config, profile: Profile, robot_name: str) -> str:
-    route_suffix = f"-{profile.route_name}" if profile.route > 0 and profile.route_name else ""
-    mode_camel = mode_to_camel(profile.mode)
-    return config.defaults.name_template.format(
-        modeCamel=mode_camel,
-        routeSuffix=route_suffix,
-        robotName=robot_name,
-    )
-
-
 def run_build(
     project_root: Path,
-    profile: Profile,
+    slot: ResolvedSlot,
     quiet: bool,
     runner: CommandRunner,
 ) -> StepRecord:
-    common_suffix = [
-        f"MODE={profile.mode}",
-        f"ROUTE={profile.route}",
-    ]
+    common_suffix = build_arg_strings(slot.build_args)
 
     candidates = [
         ["pros", "make", *common_suffix],
@@ -168,7 +153,7 @@ def run_build(
     )
 
 
-def execute_upload(
+def execute_deploy(
     project_root: Path,
     config: Config,
     state: State,
@@ -179,74 +164,77 @@ def execute_upload(
     runner = runner or SubprocessRunner(toolchain_env=toolchain_env)
     start_ts = utc_now_iso()
     started = time.perf_counter()
-
-    before_slots = dict(state.current_slots)
-    results: list[SlotExecutionResult] = []
-    current_slots = dict(before_slots)
-    last_built_profile_id = _last_built_profile_id(state)
-
     touch_files = find_compile_time_dependent_sources(project_root)
 
-    for slot in options.slots:
-        profile = resolve_profile(config, slot)
-        final_name = render_final_name(config, profile, options.robot_name)
+    resolved_slots = [resolve_slot(config, slot) for slot in options.slots]
+    deploy_slots = [slot for slot in resolved_slots if slot is not None]
 
-        slot_result = SlotExecutionResult(
-            slot=slot,
-            profile_id=profile.profile_id,
-            role_id=profile.role_id,
-            route_set=profile.route_set,
-            route_key=profile.route_key,
-            mode=profile.mode,
-            route=profile.route,
-            final_name=final_name,
+    builds: list[BuildRecord] = []
+    uploads: list[UploadRecord] = []
+    built: dict[str, BuildRecord] = {}
+    current_slots = dict(state.current_slots)
+
+    for slot in deploy_slots:
+        signature = BuildSignature.from_slot(slot)
+        signature_key = signature.model_dump_json()
+        build = built.get(signature_key)
+
+        if build is None:
+            build_id = f"build-{len(builds) + 1}"
+            build = BuildRecord(id=build_id, signature=signature)
+            built[signature_key] = build
+            builds.append(build)
+
+            if options.dry_run:
+                build.step.ok = True
+            else:
+                if state.last_build_signature != signature:
+                    for touch_path in touch_files:
+                        touch_path.touch()
+
+                if options.clean:
+                    clean_result = runner.run(["make", "clean"], project_root, options.quiet)
+                    if clean_result.returncode != 0:
+                        build.step = StepRecord(
+                            ok=False,
+                            command=["make", "clean"],
+                            returncode=clean_result.returncode,
+                            output=clean_result.output,
+                            error=clean_result.output or "make clean failed",
+                        )
+                    else:
+                        build.step = run_build(project_root, slot, options.quiet, runner)
+                else:
+                    build.step = run_build(project_root, slot, options.quiet, runner)
+
+                if build.step.ok:
+                    state.last_build_signature = signature
+
+        upload = UploadRecord(
+            slot=slot.slot,
+            build_id=build.id,
+            program_name=slot.program_name,
         )
 
         if options.dry_run:
-            slot_result.build.ok = True
-            slot_result.upload.ok = True
-            slot_result.dry_run = True
-            results.append(slot_result)
+            upload.status = "success"
+            upload.step.ok = True
+            uploads.append(upload)
             continue
 
-        profile_switched = (
-            last_built_profile_id is not None
-            and last_built_profile_id != profile.profile_id
-        )
-
-        # Build output depends on profile, not slot.
-        if profile_switched:
-            for touch_path in touch_files:
-                touch_path.touch()
-
-        if options.clean:
-            result = runner.run(["make", "clean"], project_root, options.quiet)
-            if result.returncode != 0:
-                slot_result.build = StepRecord(
-                    ok=False,
-                    command=["make", "clean"],
-                    returncode=result.returncode,
-                    output=result.output,
-                    error=result.output or "make clean failed",
-                )
-                results.append(slot_result)
-                continue
-
-        slot_result.build = run_build(project_root, profile, options.quiet, runner)
-        if not slot_result.build.ok:
-            if not slot_result.build.error:
-                slot_result.build.error = "build failed"
-            results.append(slot_result)
+        if not build.step.ok:
+            upload.status = "skipped"
+            upload.reason = "buildFailed"
+            uploads.append(upload)
             continue
-        last_built_profile_id = profile.profile_id
 
-        upload_args = ["pros", "upload", "--slot", str(slot), "--name", final_name]
+        upload_args = ["pros", "upload", "--slot", str(slot.slot), "--name", slot.program_name]
         if options.port:
             upload_args.extend(["--port", options.port])
 
         t1 = time.perf_counter()
         result = runner.run(upload_args, project_root, options.quiet)
-        slot_result.upload = StepRecord(
+        upload.step = StepRecord(
             ok=result.returncode == 0,
             command=upload_args,
             duration_sec=round(time.perf_counter() - t1, 2),
@@ -254,16 +242,18 @@ def execute_upload(
             output=result.output,
             error="" if result.returncode == 0 else (result.output or "upload failed"),
         )
-        if result.returncode != 0:
-            results.append(slot_result)
-            continue
+        upload.status = "success" if upload.step.ok else "failed"
+        if upload.step.ok:
+            current_slots[slot.slot] = StateSlotEntry.from_slot(slot, utc_now_iso())
+        uploads.append(upload)
 
-        now = utc_now_iso()
-        current_slots[slot] = StateSlotEntry.from_profile(profile, final_name, now)
-        results.append(slot_result)
-
-    all_ok = all(result.build.ok and result.upload.ok for result in results) if results else True
-    any_ok = any(result.build.ok and result.upload.ok for result in results)
+    failures = [
+        upload
+        for upload in uploads
+        if upload.status != "success" or not upload.step.ok
+    ]
+    all_ok = not failures and all(build.step.ok for build in builds)
+    any_ok = any(upload.status == "success" and upload.step.ok for upload in uploads)
     status = "success" if all_ok else ("partial" if any_ok else "failed")
 
     end_ts = utc_now_iso()
@@ -271,27 +261,20 @@ def execute_upload(
         started_at=start_ts,
         ended_at=end_ts,
         status=status,
-        robot_name=options.robot_name,
         port=options.port,
         requested_slots=options.slots,
-        before_snapshot=before_slots,
-        after_snapshot=current_slots,
-        results=results,
+        builds=builds,
+        uploads=uploads,
         duration_sec=round(time.perf_counter() - started, 2),
         dry_run=options.dry_run,
         username=get_git_username(),
         hostname=get_hostname(),
     )
 
-    state.current_slots = current_slots
-    state.updated_at = end_ts
-    if not state.created_at:
-        state.created_at = start_ts
-    state.last_robot_name = options.robot_name
-    state.last_port = options.port
-
-    history = list(state.history)
-    history.append(execution)
-    state.history = history[-config.history_retention_count:]
+    if not options.dry_run:
+        state.current_slots = current_slots
+        state.updated_at = end_ts
+        if not state.created_at:
+            state.created_at = start_ts
 
     return execution

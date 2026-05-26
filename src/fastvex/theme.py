@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import click
 from rich.console import Console
 
 console = Console()
@@ -61,7 +62,22 @@ def confirm(prompt: str, *, default_yes: bool = False) -> bool:
 
     If user presses Enter without input, returns default_yes.
     """
-    answer = console.input(prompt).strip().lower()
-    if not answer:
+    console.print(prompt, end="")
+    try:
+        answer = click.getchar().lower()
+    except (KeyboardInterrupt, EOFError):
+        raise
+    except Exception:
+        answer = console.input("").strip().lower()
+
+    if answer in {"\r", "\n", ""}:
+        console.print()
         return default_yes
-    return answer in {"y", "yes"}
+    if answer == "y":
+        console.print("y")
+        return True
+    if answer == "n":
+        console.print("n")
+        return False
+    console.print(answer)
+    return False

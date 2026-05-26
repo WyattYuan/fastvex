@@ -1,132 +1,140 @@
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from string import Formatter
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-VALID_MODES = {
-    "RED_COMP",
-    "BLUE_COMP",
-    "SKILL_COMP",
-    "RED_DEBUG",
-    "BLUE_DEBUG",
-    "SKILL_DEBUG",
-}
+KEY_RE = re.compile(r"^[a-z][A-Za-z0-9]*$")
+BUILD_ARG_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+PROGRAM_NAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
+WHITESPACE_RE = re.compile(r"\s+")
+DASH_RE = re.compile(r"-+")
+PROGRAM_NAME_LIMIT = 32
+PROGRAM_NAME_VARS = {"robot", "team", "profile", "alliance", "route", "slot"}
 
 
 class FastVexModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
-class Profile(FastVexModel):
-    profile_id: str
-    role_id: str
-    route_set: str
-    route_key: str
-    mode: str
-    route: int
-    route_name: str
-    label: str
-    enabled: bool
+class BuildArg(FastVexModel):
+    name: str
+    value: str
 
 
-class Defaults(FastVexModel):
-    robot_name: str = Field("Sparkle", alias="robotName")
-    port: str = ""
-    name_template: str = Field("{modeCamel}{routeSuffix}-{robotName}", alias="nameTemplate")
+class Robot(FastVexModel):
+    name: str
+    team: str | None = None
 
-
-class Role(FastVexModel):
-    mode: str
-    route_set: str = Field(alias="routeSet")
-    label: str = ""
-    enabled: bool = True
-    role_id: str = ""
-
-    @field_validator("mode", mode="before")
+    @field_validator("name", "team")
     @classmethod
-    def normalize_mode(cls, value: Any) -> str:
-        mode = str(value).upper()
-        if mode not in VALID_MODES:
-            raise ValueError(f"invalid mode '{mode}'")
-        return mode
-
-    @field_validator("route_set", mode="before")
-    @classmethod
-    def normalize_route_set(cls, value: Any) -> str:
-        route_set = str(value).strip().lower()
-        if not route_set:
-            raise ValueError("must define routeSet")
-        return route_set
-
-
-class RouteOption(FastVexModel):
-    route: int
-    route_name: str = Field(alias="routeName")
-    label: str = ""
-    enabled: bool = True
-    key: str = ""
-
-    @field_validator("route")
-    @classmethod
-    def validate_route(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError(f"invalid route '{value}'")
-        return value
-
-
-class SlotBinding(FastVexModel):
-    role_id: str = Field(alias="role")
-    route_key_override: str | None = Field(None, alias="route")
-
-    @field_validator("role_id", mode="before")
-    @classmethod
-    def normalize_role_id(cls, value: Any) -> str:
-        role_id = str(value).strip()
-        if not role_id:
-            raise ValueError("mapping form requires 'role'")
-        return role_id
-
-    @field_validator("route_key_override", mode="before")
-    @classmethod
-    def normalize_route_key(cls, value: Any) -> str | None:
+    def validate_text(cls, value: str | None) -> str | None:
         if value is None:
             return None
-        route_key = str(value).strip()
-        return route_key or None
+        text = str(value).strip()
+        if not text:
+            raise ValueError("must not be empty")
+        return text
 
 
-class Config(FastVexModel):
-    schema_version: int = Field(1, alias="schemaVersion")
-    defaults: Defaults = Field(default_factory=Defaults) #type: ignore
-    roles: dict[str, Role]
-    routes: dict[str, dict[str, RouteOption]]
-    active_route: dict[str, str] = Field(alias="activeRoute")
-    slots: dict[int, SlotBinding]
-    groups: dict[str, list[int]] = Field(default_factory=dict)
-    history_retention_count: int = Field(10, alias="historyRetentionCount")
+class ProgramName(FastVexModel):
+    template: str = "{profile}-{route}-{robot}"
 
-    @field_validator("roles", mode="before")
+    @field_validator("template")
     @classmethod
-    def validate_roles_raw(cls, value: Any) -> Any:
-        if not isinstance(value, dict) or not value:
-            raise ValueError("roles must be a non-empty mapping")
-        return value
+    def validate_template(cls, value: str) -> str:
+        text = str(value).strip()
+        if not text:
+            raise ValueError("programName.template must not be empty")
+        for _, field_name, format_spec, conversion in Formatter().parse(text):
+            if field_name is None:
+                continue
+            if format_spec or conversion:
+                raise ValueError("programName.template only supports simple {name} placeholders")
+            if field_name not in PROGRAM_NAME_VARS:
+                raise ValueError(f"unknown programName variable '{field_name}'")
+        return text
+
+
+class Route(FastVexModel):
+    build_args: dict[str, str] = Field(default_factory=dict, alias="buildArgs")
+
+    @field_validator("build_args", mode="before")
+    @classmethod
+    def normalize_build_args(cls, value: Any) -> dict[str, str]:
+        return normalize_build_args(value)
+
+
+class Alliance(FastVexModel):
+    routes: dict[str, Route]
 
     @field_validator("routes", mode="before")
     @classmethod
-    def validate_routes_raw(cls, value: Any) -> Any:
+    def validate_routes(cls, value: Any) -> Any:
         if not isinstance(value, dict) or not value:
             raise ValueError("routes must be a non-empty mapping")
+        validate_keys(value, "route")
         return value
 
-    @field_validator("active_route", mode="before")
+
+class Profile(FastVexModel):
+    alliance: str
+    build_args: dict[str, str] = Field(default_factory=dict, alias="buildArgs")
+
+    @field_validator("alliance")
     @classmethod
-    def validate_active_route_raw(cls, value: Any) -> Any:
-        if not isinstance(value, dict):
-            raise ValueError("activeRoute must be a mapping")
-        return {str(k).strip().lower(): str(v).strip() for k, v in value.items()}
+    def validate_alliance(cls, value: str) -> str:
+        text = str(value).strip()
+        if not KEY_RE.match(text):
+            raise ValueError("alliance must be lower camel case")
+        return text
+
+    @field_validator("build_args", mode="before")
+    @classmethod
+    def normalize_profile_build_args(cls, value: Any) -> dict[str, str]:
+        return normalize_build_args(value)
+
+
+class SlotBinding(FastVexModel):
+    profile: str
+    route: str
+
+    @field_validator("profile", "route")
+    @classmethod
+    def validate_ref(cls, value: str) -> str:
+        text = str(value).strip()
+        if not KEY_RE.match(text):
+            raise ValueError("reference must be lower camel case")
+        return text
+
+
+class Config(FastVexModel):
+    schema_version: int = Field(2, alias="schemaVersion")
+    robot: Robot
+    program_name: ProgramName = Field(default_factory=ProgramName, alias="programName")
+    alliances: dict[str, Alliance]
+    profiles: dict[str, Profile]
+    slots: dict[int, SlotBinding | None]
+    slot_groups: dict[str, list[int]] = Field(default_factory=dict, alias="slotGroups")
+
+    @field_validator("schema_version")
+    @classmethod
+    def validate_schema_version(cls, value: int) -> int:
+        if value != 2:
+            raise ValueError("fastvex.yaml uses schemaVersion 1. Run: fastvex migrate")
+        return value
+
+    @field_validator("alliances", "profiles", mode="before")
+    @classmethod
+    def validate_keyed_mapping(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or not value:
+            raise ValueError("must be a non-empty mapping")
+        validate_keys(value, "key")
+        return value
 
     @field_validator("slots", mode="before")
     @classmethod
@@ -138,93 +146,75 @@ class Config(FastVexModel):
             slot = int(raw_slot)
             if slot < 1 or slot > 8:
                 raise ValueError(f"slot '{slot}' out of range 1-8")
-            normalized[slot] = raw_binding
+            if isinstance(raw_binding, str) and raw_binding == "empty":
+                normalized[slot] = None
+            elif isinstance(raw_binding, dict):
+                normalized[slot] = raw_binding
+            else:
+                raise ValueError("slot must be 'empty' or a mapping with profile and route")
         return normalized
 
-    @field_validator("groups", mode="before")
+    @field_validator("slot_groups", mode="before")
     @classmethod
-    def validate_groups_raw(cls, value: Any) -> Any:
+    def validate_slot_groups_raw(cls, value: Any) -> Any:
         if value is None:
             return {}
         if not isinstance(value, dict):
-            raise ValueError("groups must be a mapping")
+            raise ValueError("slotGroups must be a mapping")
+        validate_keys(value, "slot group")
         normalized: dict[str, list[int]] = {}
         for name, raw_slots in value.items():
             if not isinstance(raw_slots, list):
-                raise ValueError(f"group '{name}' must be a list")
-            casted = [int(slot) for slot in raw_slots]
-            for slot in casted:
+                raise ValueError(f"slotGroups.{name} must be a list")
+            slots: list[int] = []
+            for raw_slot in raw_slots:
+                slot = int(raw_slot)
                 if slot < 1 or slot > 8:
-                    raise ValueError(f"group '{name}' includes out-of-range slot '{slot}'")
-            slots = normalize_slots(casted)
-            if not slots:
-                raise ValueError(f"group '{name}' cannot be empty")
+                    raise ValueError(f"slotGroups.{name} includes out-of-range slot '{slot}'")
+                slots.append(slot)
             normalized[str(name)] = slots
         return normalized
 
     @model_validator(mode="after")
-    def enrich_and_validate(self) -> Config:
-        self.roles = {
-            role_id: role.model_copy(
-                update={
-                    "role_id": role_id,
-                    "label": role.label or role_id,
-                }
-            )
-            for role_id, role in self.roles.items()
-        }
-
-        normalized_routes: dict[str, dict[str, RouteOption]] = {}
-        for route_set, options in self.routes.items():
-            route_set_key = str(route_set).strip().lower()
-            if not options:
-                raise ValueError(f"routes.{route_set_key} must be a non-empty mapping")
-            normalized_routes[route_set_key] = {
-                key: option.model_copy(
-                    update={
-                        "key": key,
-                        "route_name": option.route_name or key,
-                        "label": option.label or key,
-                    }
-                )
-                for key, option in options.items()
-            }
-        self.routes = normalized_routes
-
-        for route_set, key in self.active_route.items():
-            if route_set not in self.routes:
-                raise ValueError(f"activeRoute references unknown route set '{route_set}'")
-            if key not in self.routes[route_set]:
-                raise ValueError(f"activeRoute.{route_set} references unknown route key '{key}'")
-
-        for role_id, role in self.roles.items():
-            if role.route_set not in self.routes:
-                raise ValueError(
-                    f"role '{role_id}' references unknown route set '{role.route_set}'"
-                )
-            if role.route_set not in self.active_route:
-                raise ValueError(
-                    f"activeRoute missing route set '{role.route_set}' for role '{role_id}'"
-                )
-
-        for slot, binding in self.slots.items():
-            if binding.role_id not in self.roles:
-                raise ValueError(f"slot '{slot}' references unknown role '{binding.role_id}'")
-            role = self.roles[binding.role_id]
-            if (
-                binding.route_key_override is not None
-                and binding.route_key_override not in self.routes[role.route_set]
-            ):
-                raise ValueError(
-                    f"slot '{slot}' override route '{binding.route_key_override}' is not valid "
-                    f"for route set '{role.route_set}'"
-                )
-
+    def validate_refs(self) -> Config:
         missing_slots = [slot for slot in range(1, 9) if slot not in self.slots]
         if missing_slots:
             raise ValueError(f"slots must define 1-8, missing: {missing_slots}")
 
+        for profile_key, profile in self.profiles.items():
+            if profile.alliance not in self.alliances:
+                raise ValueError(
+                    f"profile '{profile_key}' references unknown alliance '{profile.alliance}'"
+                )
+
+        for slot, binding in self.slots.items():
+            if binding is None:
+                continue
+            if binding.profile not in self.profiles:
+                raise ValueError(f"slot '{slot}' references unknown profile '{binding.profile}'")
+            profile = self.profiles[binding.profile]
+            routes = self.alliances[profile.alliance].routes
+            if binding.route not in routes:
+                raise ValueError(
+                    f"slot '{slot}' route '{binding.route}' is not valid for "
+                    f"alliance '{profile.alliance}'"
+                )
+
         return self
+
+
+@dataclass(frozen=True)
+class ResolvedSlot:
+    slot: int
+    profile: str
+    alliance: str
+    route: str
+    build_args: list[BuildArg]
+    program_name: str
+
+    @property
+    def build_key(self) -> str:
+        return f"{self.profile}:{self.route}"
 
 
 def utc_now_iso() -> str:
@@ -232,34 +222,107 @@ def utc_now_iso() -> str:
     return datetime.now(beijing_tz).replace(microsecond=0).isoformat()
 
 
-def normalize_slots(values: list[int]) -> list[int]:
-    unique = sorted(set(values))
-    return [value for value in unique if 1 <= value <= 8]
+def validate_keys(mapping: dict[Any, Any], label: str) -> None:
+    for key in mapping:
+        text = str(key)
+        if not KEY_RE.match(text):
+            raise ValueError(f"{label} '{text}' must match [a-z][A-Za-z0-9]*")
 
 
-def mode_to_camel(mode: str) -> str:
-    return "".join(part.capitalize() for part in mode.split("_"))
+def normalize_build_args(value: Any) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("buildArgs must be a mapping")
+    normalized: dict[str, str] = {}
+    for raw_key, raw_value in value.items():
+        key = str(raw_key).strip()
+        if not BUILD_ARG_RE.match(key):
+            raise ValueError(f"buildArg '{key}' must match [A-Za-z_][A-Za-z0-9_]*")
+        if isinstance(raw_value, bool) or isinstance(raw_value, (list, dict)) or raw_value is None:
+            raise ValueError(f"buildArg '{key}' must be a string or number")
+        if not isinstance(raw_value, (str, int, float)):
+            raise ValueError(f"buildArg '{key}' must be a string or number")
+        normalized[key] = str(raw_value)
+    return normalized
 
 
-def resolve_profile(config: Config, slot: int) -> Profile:
+def merge_build_args(
+    profile_args: dict[str, str],
+    route_args: dict[str, str],
+) -> tuple[list[BuildArg], list[str]]:
+    ordered: list[BuildArg] = []
+    positions: dict[str, int] = {}
+    warnings: list[str] = []
+
+    for name, value in profile_args.items():
+        positions[name] = len(ordered)
+        ordered.append(BuildArg(name=name, value=value))
+
+    for name, value in route_args.items():
+        if name in positions:
+            warnings.append(f"route buildArgs overrides profile buildArg '{name}'")
+            idx = positions.pop(name)
+            ordered.pop(idx)
+            positions = {arg.name: i for i, arg in enumerate(ordered)}
+        positions[name] = len(ordered)
+        ordered.append(BuildArg(name=name, value=value))
+
+    return ordered, warnings
+
+
+def render_program_name(config: Config, resolved: ResolvedSlot) -> str:
+    values = {
+        "robot": config.robot.name,
+        "team": config.robot.team,
+        "profile": resolved.profile,
+        "alliance": resolved.alliance,
+        "route": resolved.route,
+        "slot": str(resolved.slot),
+    }
+    for _, field_name, _, _ in Formatter().parse(config.program_name.template):
+        if field_name is None:
+            continue
+        if values.get(field_name) is None:
+            raise ValueError(f"programName.template uses {{{field_name}}}, but it is not set")
+    raw = config.program_name.template.format(**values)
+    return clean_program_name(raw)
+
+
+def clean_program_name(value: str) -> str:
+    text = value.strip()
+    text = WHITESPACE_RE.sub("-", text)
+    text = PROGRAM_NAME_RE.sub("-", text)
+    text = DASH_RE.sub("-", text).strip("-")
+    if not text:
+        raise ValueError("programName rendered to an empty name")
+    return text
+
+
+def resolve_slot(config: Config, slot: int) -> ResolvedSlot | None:
     binding = config.slots[slot]
-    role_id = binding.role_id
-    role = config.roles[role_id]
-    route_set = role.route_set
-    route_key = binding.route_key_override or config.active_route[route_set]
-    option = config.routes[route_set][route_key]
-
-    profile_id = f"{role_id}:{route_key}"
-    label = f"{role.label} / {option.label}" if option.label else role.label
-
-    return Profile(
-        profile_id=profile_id,
-        role_id=role_id,
-        route_set=route_set,
-        route_key=route_key,
-        mode=role.mode,
-        route=option.route,
-        route_name=option.route_name,
-        label=label,
-        enabled=role.enabled and option.enabled,
+    if binding is None:
+        return None
+    profile = config.profiles[binding.profile]
+    route = config.alliances[profile.alliance].routes[binding.route]
+    build_args, _ = merge_build_args(profile.build_args, route.build_args)
+    partial = ResolvedSlot(
+        slot=slot,
+        profile=binding.profile,
+        alliance=profile.alliance,
+        route=binding.route,
+        build_args=build_args,
+        program_name="",
     )
+    return ResolvedSlot(
+        slot=slot,
+        profile=partial.profile,
+        alliance=partial.alliance,
+        route=partial.route,
+        build_args=partial.build_args,
+        program_name=render_program_name(config, partial),
+    )
+
+
+def build_arg_strings(args: list[BuildArg]) -> list[str]:
+    return [f"{arg.name}={arg.value}" for arg in args]

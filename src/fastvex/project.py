@@ -8,6 +8,8 @@ from .storage import ValidationError
 DEFAULT_CONFIG = "fastvex.yaml"
 LEGACY_CONFIG = "vex_upload_config.yaml"
 DEFAULT_STATE = ".fastvex/state.json"
+DEFAULT_SETTINGS = ".fastvex/settings.json"
+DEFAULT_LOCAL_GITIGNORE = ".fastvex/.gitignore"
 
 
 @dataclass(frozen=True)
@@ -15,6 +17,8 @@ class ProjectPaths:
     root: Path
     config: Path
     state: Path
+    settings: Path
+    local_gitignore: Path
     legacy_config: bool = False
 
 
@@ -70,5 +74,14 @@ def resolve_project_paths(
         if state
         else (root / DEFAULT_STATE).resolve()
     )
+    settings_path = (root / DEFAULT_SETTINGS).resolve()
+    local_gitignore_path = (root / DEFAULT_LOCAL_GITIGNORE).resolve()
 
-    return ProjectPaths(root=root, config=config_path, state=state_path, legacy_config=legacy_config)
+    return ProjectPaths(
+        root=root,
+        config=config_path,
+        state=state_path,
+        settings=settings_path,
+        local_gitignore=local_gitignore_path,
+        legacy_config=legacy_config,
+    )
