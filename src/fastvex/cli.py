@@ -40,8 +40,12 @@ app = typer.Typer(
     name="fastvex",
     help="Fast VEX slot-oriented deploy manager.",
     invoke_without_command=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
-history_app = typer.Typer(help="Show or clean history.")
+history_app = typer.Typer(
+    help="Show or clean history.",
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
 app.add_typer(history_app, name="history")
 
 
@@ -317,10 +321,14 @@ def _prog_name() -> str:
 
 
 def main(argv: list[str] | None = None, prog_name: str | None = None) -> int:
+    prog = prog_name or _prog_name()
     try:
-        app(args=argv, prog_name=prog_name or _prog_name(), standalone_mode=False)
+        app(args=argv, prog_name=prog, standalone_mode=False)
         return 0
     except click.exceptions.Exit as exc:
+        return int(exc.exit_code)
+    except click.exceptions.ClickException as exc:
+        exc.show(file=err_console.file)
         return int(exc.exit_code)
     except ValidationError as exc:
         err_console.print(f"\n  [bold red]{FAIL} validation error:[/bold red] {exc}\n")

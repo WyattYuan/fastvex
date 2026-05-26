@@ -77,6 +77,36 @@ def test_help_uses_invoked_program_name(capsys) -> None:
     assert "fvx" in captured.out
 
 
+def test_short_help_flag_matches_help(capsys) -> None:
+    assert main(["-h"], prog_name="fvx") == 0
+    root_help = capsys.readouterr().out
+
+    assert main(["deploy", "-h"], prog_name="fvx") == 0
+    deploy_help = capsys.readouterr().out
+
+    assert "Usage:" in root_help
+    assert "fvx" in root_help
+    assert "Usage:" in deploy_help
+    assert "fvx deploy" in deploy_help
+
+
+def test_unknown_command_returns_cli_error(capsys) -> None:
+    assert main(["nope"], prog_name="fvx") == 2
+
+    captured = capsys.readouterr()
+    assert "No such command 'nope'" in captured.err
+    assert "Traceback" not in captured.err
+    assert "fvx" in captured.err
+
+
+def test_unknown_option_returns_cli_error(capsys) -> None:
+    assert main(["deploy", "--bad"], prog_name="fvx") == 2
+
+    captured = capsys.readouterr()
+    assert "No such option '--bad'" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_validate_accepts_global_config_before_command(robot_project: Path, monkeypatch) -> None:
     monkeypatch.chdir(robot_project / "src")
 
