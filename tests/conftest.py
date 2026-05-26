@@ -70,7 +70,6 @@ def fake_tool_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         make.chmod(0o755)
 
     monkeypatch.setenv("PATH", str(bin_dir) + os.pathsep + os.environ.get("PATH", ""))
-    monkeypatch.setattr(toolchain, "load_toolchain", lambda: toolchain.ToolchainCache())
     toolchain.invalidate_toolchain_cache()
     yield log_path
     toolchain.invalidate_toolchain_cache()

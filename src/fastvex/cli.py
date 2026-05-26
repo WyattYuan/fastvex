@@ -90,6 +90,13 @@ def _deploy_request(
 
 
 def run_default_interactive(config: str | None = None, state: str | None = None) -> int:
+    from .toolchain import resolve_toolchain
+
+    if not resolve_toolchain():
+        err_console.print(f"  [bold red]{FAIL} PROS toolchain not found.[/bold red]")
+        err_console.print("  [dim]Please use fastvex in PROS Terminal![/dim]")
+        return 1
+
     report = show_project(config=config, state=state)
     print_dashboard(report.config, report.state)
 
@@ -257,21 +264,18 @@ def migrate_command(
 
 @app.command("toolchain")
 def toolchain_command(
-    rescan: Annotated[bool, typer.Option("--rescan", help="Force re-scan, ignore cache.")] = False,
+    rescan: Annotated[bool, typer.Option("--rescan", help="Force re-scan.")] = False,
 ) -> None:
     report: ToolchainReport = show_toolchain(rescan=rescan)
 
-    if not report.cache.pros_path:
+    if not report.pros_path:
         err_console.print(f"  [yellow]{WARN} PROS not found[/yellow]")
-        err_console.print("  [dim]Searched via 'which pros' - run from PROS Terminal first to cache the path.[/dim]")
+        err_console.print("  [dim]Searched via 'which pros' - ensure PROS CLI is on your PATH.[/dim]")
         _finish(1)
         return
 
-    status = "rescanned" if report.rediscovered else "cached"
-    console.print(f"  [green]{OK} PROS found ({status}):[/green]")
-    console.print(f"    path: {report.cache.pros_path}")
-    if report.cache.discovered_at:
-        console.print(f"    cached: {report.cache.discovered_at}")
+    console.print(f"  [green]{OK} PROS found:[/green]")
+    console.print(f"    path: {report.pros_path}")
 
 
 @history_app.callback()

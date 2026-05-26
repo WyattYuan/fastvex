@@ -4,8 +4,6 @@ import shutil
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
-
 import yaml
 
 from .models import Config, PROGRAM_NAME_LIMIT, ResolvedSlot, merge_build_args, resolve_slot, utc_now_iso
@@ -22,10 +20,6 @@ from .storage import (
     save_settings,
     save_state,
 )
-
-if TYPE_CHECKING:
-    from .toolchain import ToolchainCache
-
 
 @dataclass(frozen=True)
 class InitReport:
@@ -105,7 +99,7 @@ class DeployReport:
 
 @dataclass(frozen=True)
 class ToolchainReport:
-    cache: ToolchainCache
+    pros_path: str
     rediscovered: bool
 
 
@@ -624,17 +618,14 @@ def migrate_project(
 
 
 def show_toolchain(rescan: bool = False) -> ToolchainReport:
-    from .toolchain import ToolchainCache, _global_toolchain_path, invalidate_toolchain_cache, resolve_toolchain
+    from .toolchain import invalidate_toolchain_cache, resolve_toolchain
 
-    old_cache = resolve_toolchain()
+    old = resolve_toolchain()
 
     if rescan:
         invalidate_toolchain_cache()
-        cache_path = _global_toolchain_path()
-        if cache_path.is_file():
-            cache_path.unlink()
-        old_cache = ToolchainCache()
+        old = None
 
-    new_cache = resolve_toolchain()
-    rediscovered = old_cache.pros_path != new_cache.pros_path
-    return ToolchainReport(cache=new_cache, rediscovered=rediscovered)
+    new = resolve_toolchain()
+    rediscovered = old != new
+    return ToolchainReport(pros_path=new or "", rediscovered=rediscovered)

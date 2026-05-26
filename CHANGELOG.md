@@ -4,6 +4,7 @@
 
 ## [0.1.0] - Unreleased
 
+
 ### 新增
 
 - `fvx` 短命令，与 `fastvex` 完全等价
@@ -26,6 +27,11 @@
   - 新增 `programName` 模板，支持 `{robot}`、`{team}`、`{profile}`、`{alliance}`、`{route}`、`{slot}` 占位符
   - 必须显式定义全部 8 个槽位
   - 旧版 `vex_upload_config.yaml` 需通过 `fastvex migrate` 迁移
+- 简化 toolchain 模块：移除磁盘缓存（`~/.fastvex/toolchain.json`），改为进程内缓存 + `shutil.which` 直接发现
+- `resolve_toolchain()` 返回类型从 `ToolchainCache` 改为 `str | None`
+- `get_toolchain_env()` 参数从 `ToolchainCache` 改为 `str | None`
+- `fastvex toolchain --rescan` 不再删除缓存文件，仅清除进程内缓存
+- 交互模式启动时检测 PROS 工具链，未找到则报错退出
 
 ### 修复
 
