@@ -7,7 +7,6 @@ from pathlib import Path
 
 import yaml
 
-from .executor import RunOptions, execute_deploy
 from .models import Config, PROGRAM_NAME_LIMIT, ResolvedSlot, merge_build_args, resolve_slot, utc_now_iso
 from .project import DEFAULT_CONFIG, DEFAULT_STATE, LEGACY_CONFIG, ProjectPaths, resolve_project_paths
 from .state_model import ExecutionRecord, Settings, State
@@ -22,8 +21,6 @@ from .storage import (
     save_settings,
     save_state,
 )
-from .templates import DEFAULT_CONFIG_TEXT, DEFAULT_LOCAL_GITIGNORE_TEXT
-from .toolchain import ToolchainCache, get_toolchain_env, resolve_toolchain
 
 
 @dataclass(frozen=True)
@@ -142,6 +139,8 @@ def init_project(
     *,
     force: bool = False,
 ) -> InitReport:
+    from .templates import DEFAULT_CONFIG_TEXT, DEFAULT_LOCAL_GITIGNORE_TEXT
+
     paths = resolve_project_paths(config=config or DEFAULT_CONFIG, state=state or DEFAULT_STATE, require_config=False)
     legacy_config = paths.root / LEGACY_CONFIG
 
@@ -377,6 +376,9 @@ def deploy_slots(
     config: str | None = None,
     state: str | None = None,
 ) -> DeployReport:
+    from .executor import RunOptions, execute_deploy
+    from .toolchain import get_toolchain_env, resolve_toolchain
+
     plan = plan_deploy(request, config=config, state=state)
     if request.port is not None:
         plan.state.last_port = request.port
@@ -592,11 +594,12 @@ def migrate_project(
 
 
 def show_toolchain(rescan: bool = False) -> ToolchainReport:
-    from .toolchain import _global_toolchain_path
+    from .toolchain import ToolchainCache, _global_toolchain_path, invalidate_toolchain_cache, resolve_toolchain
 
     old_cache = resolve_toolchain()
 
     if rescan:
+        invalidate_toolchain_cache()
         cache_path = _global_toolchain_path()
         if cache_path.is_file():
             cache_path.unlink()

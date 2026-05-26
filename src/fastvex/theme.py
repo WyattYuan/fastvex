@@ -5,8 +5,39 @@ from datetime import datetime, timedelta, timezone
 import click
 from rich.console import Console
 
-console = Console()
-err_console = Console(stderr=True)
+_console: Console | None = None
+_err_console: Console | None = None
+
+
+def _get_console() -> Console:
+    global _console
+    if _console is None:
+        _console = Console()
+    return _console
+
+
+def _get_err_console() -> Console:
+    global _err_console
+    if _err_console is None:
+        _err_console = Console(stderr=True)
+    return _err_console
+
+
+class _ConsoleProxy:
+    """Lazy proxy that defers Console() creation until first attribute access."""
+
+    __slots__ = ("_target",)
+
+    def __init__(self, target: str) -> None:
+        self._target = target
+
+    def __getattr__(self, name: str):
+        getter = _get_console if self._target == "out" else _get_err_console
+        return getattr(getter(), name)
+
+
+console = _ConsoleProxy("out")  # type: ignore[assignment]
+err_console = _ConsoleProxy("err")  # type: ignore[assignment]
 
 # ─── Status symbols ─────────────────────────────────────────────────────────
 

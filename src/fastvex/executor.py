@@ -56,7 +56,7 @@ class CommandRunner:
         raise NotImplementedError
 
 
-def _resolve_executable(command: str) -> str:
+def _resolve_executable(command: str, env: dict[str, str] | None = None) -> str:
     command_path = Path(command)
     if command_path.parent != Path(".") or command_path.suffix:
         return command
@@ -65,7 +65,8 @@ def _resolve_executable(command: str) -> str:
     if os.name == "nt":
         extensions = [".cmd", ".bat", ".exe", ".com", ""]
 
-    for directory in os.environ.get("PATH", "").split(os.pathsep):
+    search_env = env if env is not None else os.environ
+    for directory in search_env.get("PATH", "").split(os.pathsep):
         if not directory:
             continue
         base = Path(directory)
@@ -81,9 +82,9 @@ class SubprocessRunner(CommandRunner):
         self._toolchain_env = toolchain_env or {}
 
     def run(self, args: list[str], cwd: Path, quiet: bool) -> CommandResult:
-        resolved_args = list(args)
-        resolved_args[0] = _resolve_executable(resolved_args[0])
         env = {**os.environ, **self._toolchain_env} if self._toolchain_env else None
+        resolved_args = list(args)
+        resolved_args[0] = _resolve_executable(resolved_args[0], env=env)
         proc = subprocess.run(
             resolved_args,
             cwd=str(cwd),

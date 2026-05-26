@@ -18,13 +18,20 @@ class ValidationError(Exception):
     pass
 
 
+_cached_git_username: str | None = None
+
+
 def get_git_username() -> str:
+    global _cached_git_username
+    if _cached_git_username is not None:
+        return _cached_git_username
     try:
-        return subprocess.check_output(
+        _cached_git_username = subprocess.check_output(
             ["git", "config", "user.name"], text=True
         ).strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return os.environ.get("USERNAME", os.environ.get("USER", "unknown"))
+        _cached_git_username = os.environ.get("USERNAME", os.environ.get("USER", "unknown"))
+    return _cached_git_username
 
 
 def get_hostname() -> str:

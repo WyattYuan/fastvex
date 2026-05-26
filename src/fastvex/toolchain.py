@@ -12,6 +12,8 @@ from .state_model import StateModel
 DEFAULT_TOOLCHAIN_DIR = ".fastvex"
 DEFAULT_TOOLCHAIN_FILE = "toolchain.json"
 
+_resolved_cache: ToolchainCache | None = None
+
 
 class ToolchainCache(StateModel):
     pros_path: str = ""
@@ -47,16 +49,27 @@ def save_toolchain(cache: ToolchainCache) -> None:
     )
 
 
+def invalidate_toolchain_cache() -> None:
+    global _resolved_cache
+    _resolved_cache = None
+
+
 def resolve_toolchain() -> ToolchainCache:
+    global _resolved_cache
+    if _resolved_cache is not None:
+        return _resolved_cache
+
     cache = load_toolchain()
     if cache.pros_path and Path(cache.pros_path).is_file():
-        return cache
+        _resolved_cache = cache
+        return _resolved_cache
 
     discovered = discover_pros()
     if discovered:
         cache = ToolchainCache(pros_path=discovered, discovered_at=utc_now_iso())
         save_toolchain(cache)
-    return cache
+    _resolved_cache = cache
+    return _resolved_cache
 
 
 def get_toolchain_env(cache: ToolchainCache) -> dict[str, str]:
