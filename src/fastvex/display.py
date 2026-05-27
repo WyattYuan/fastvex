@@ -8,26 +8,16 @@ from rich.text import Text
 from .models import Config
 from .resolve import ResolvedSlot, build_arg_strings, resolve_slot
 from .state_model import ExecutionRecord, State, StateSlotEntry
-from .theme import FAIL, OK, ROCKET, WARN, console
+from .theme import FAIL, OK, ROCKET, WARN, alliance_style, console
 
 
-def _alliance_style(text: str) -> str:
-    """Return rich style based on alliance/team keyword in text."""
-    lower = text.lower()
-    if "red" in lower:
-        return "red"
-    if "blue" in lower:
-        return "blue"
-    if "skill" in lower:
-        return "yellow"
-    return "cyan"
 
 
 def print_dashboard(config: Config, state: State) -> None:
     """Display the default interactive overview."""
     del state
     console.print()
-    name_style = _alliance_style(config.robot.name)
+    name_style = alliance_style(config.robot.name)
     console.print(f"  [bold cyan]fastvex[/bold cyan]  [{name_style}]{config.robot.name}[/{name_style}]")
     console.print()
     print_slot_table(config, compact=True)
@@ -62,8 +52,8 @@ def print_slot_table(config: Config, *, compact: bool = False) -> None:
             console.print(f"  [white]{slot}[/white]  [dim]empty[/dim]")
             continue
         if compact:
-            ps = _alliance_style(resolved.profile)
-            pns = _alliance_style(resolved.program_name)
+            ps = alliance_style(resolved.profile)
+            pns = alliance_style(resolved.program_name)
             console.print(
                 f"  [white]{slot}[/white]  "
                 f"[{ps}]{resolved.profile:<10}[/{ps}] "
@@ -71,9 +61,9 @@ def print_slot_table(config: Config, *, compact: bool = False) -> None:
                 f"[{pns}]{resolved.program_name}[/{pns}]"
             )
         else:
-            ps = _alliance_style(resolved.profile)
-            als = _alliance_style(resolved.alliance)
-            pns = _alliance_style(resolved.program_name)
+            ps = alliance_style(resolved.profile)
+            als = alliance_style(resolved.alliance)
+            pns = alliance_style(resolved.program_name)
             console.print(
                 f"  [white]Slot {slot}[/white]  "
                 f"[{ps}]{resolved.profile:<10}[/{ps}] "
@@ -89,8 +79,8 @@ def _print_current_slots(current: dict[int, StateSlotEntry]) -> None:
         if not entry:
             console.print(f"  [dim]Slot {slot}: (unknown)[/dim]")
         else:
-            ps = _alliance_style(entry.profile)
-            pns = _alliance_style(entry.program_name)
+            ps = alliance_style(entry.profile)
+            pns = alliance_style(entry.program_name)
             console.print(
                 f"  [white]Slot {slot}[/white]  "
                 f"[{ps}]{entry.profile:<10}[/{ps}] "
@@ -144,13 +134,13 @@ def print_deploy_plan(slots: list[ResolvedSlot]) -> None:
     console.print()
     for grouped_slots in _group_by_build(slots).values():
         first = grouped_slots[0]
-        ps = _alliance_style(first.profile)
+        ps = alliance_style(first.profile)
         console.print(f"  [bold cyan]Build[/bold cyan] [{ps}]{first.profile}[/{ps}]:{first.route}")
         args = " ".join(build_arg_strings(first.build_args)) or "(none)"
         console.print(f"    [dim]args:[/dim] {args}")
         console.print("    [dim]upload:[/dim]")
         for slot in grouped_slots:
-            pns = _alliance_style(slot.program_name)
+            pns = alliance_style(slot.program_name)
             console.print(f"      slot {slot.slot} -> [{pns}]{slot.program_name}[/{pns}]")
     console.print()
 

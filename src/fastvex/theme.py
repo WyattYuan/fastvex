@@ -64,6 +64,22 @@ def role_tone(route_set: str, mode: str) -> tuple[str, bool]:
     return ("cyan", False)
 
 
+def alliance_style(text: str) -> str:
+    """Return a Rich color name for an alliance/profile/program-name string.
+
+    Single source of truth for the red/blue/skill → color mapping used
+    throughout the display layer.
+    """
+    lower = text.lower()
+    if "red" in lower:
+        return "red"
+    if "blue" in lower:
+        return "blue"
+    if "skill" in lower:
+        return "yellow"
+    return "cyan"
+
+
 # ─── Timestamp ───────────────────────────────────────────────────────────────
 
 
