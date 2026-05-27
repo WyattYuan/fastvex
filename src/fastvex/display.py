@@ -184,10 +184,10 @@ def print_execution_result(execution: ExecutionRecord) -> None:
     # 1. Determine title and border style based on execution status
     if execution.status == "success":
         border_style = "green"
-        title = " [bold green]✔ DEPLOYMENT SUCCESSFUL[/bold green] "
+        title = " [bold green]DEPLOYMENT SUCCESSFUL[/bold green] "
     elif execution.status == "failed":
         border_style = "red"
-        title = " [bold red]✘ DEPLOYMENT FAILED[/bold red] "
+        title = " [bold red]DEPLOYMENT FAILED[/bold red] "
     else:
         border_style = "yellow"
         title = f" [bold yellow]DEPLOYMENT {execution.status.upper()}[/bold yellow] "
@@ -216,17 +216,17 @@ def print_execution_result(execution: ExecutionRecord) -> None:
         lines.append(Text("UPLOAD SUMMARY", style="bold white"))
         for upload in execution.uploads:
             pns = alliance_style(upload.program_name)
-            slot_str = f"  Slot {upload.slot:02d} ➔ "
+            slot_str = f"  Slot {upload.slot:02d} {ROCKET} "
             
             line = Text()
             line.append(slot_str, style="dim")
             line.append(f"{upload.program_name:<30}", style=pns)
             
             if upload.status == "success" and upload.step.ok:
-                line.append("  ✔ SUCCESS", style="bold green")
+                line.append(f"  {OK} SUCCESS", style="bold green")
                 line.append(f"  ({upload.step.duration_sec:.2f}s)", style="dim")
             else:
-                line.append("  ✘ FAILED", style="bold red")
+                line.append(f"  {FAIL} FAILED", style="bold red")
                 err_detail = upload.reason or upload.step.error or "upload failed"
                 line.append(f"  ({err_detail})", style="red dim")
             lines.append(line)
