@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastvex.services import DeployRequest, deploy_slots, get_history, validate_project
+from fastvex.services import DeployRequest, clean_history, deploy_slots, get_history, validate_project
 from fastvex.state_model import ExecutionRecord, State
 from fastvex.storage import load_state, save_state
 
@@ -57,3 +57,46 @@ def test_get_history_recovers_running_active_execution(robot_project) -> None:
     assert report.state.history[-1].requested_slots == [3]
     assert saved.active_execution is None
     assert saved.history[-1].status == "interrupted"
+
+
+def test_clean_history_supports_keep_zero(robot_project) -> None:
+    state_path = robot_project / ".fastvex" / "state.json"
+    save_state(
+        state_path,
+        State(
+            history=[
+                ExecutionRecord(started_at="2026-05-26T12:00:00+00:00", status="success"),
+                ExecutionRecord(started_at="2026-05-26T12:05:00+00:00", status="success"),
+            ]
+        ),
+    )
+
+    report = clean_history(config=str(robot_project / "fastvex.yaml"), keep=0)
+    saved = load_state(state_path)
+
+    assert report.removed_count == 2
+    assert report.kept_count == 0
+    assert len(report.state.history) == 0
+    assert len(saved.history) == 0
+
+
+def test_clean_history_trims_to_keep_count(robot_project) -> None:
+    state_path = robot_project / ".fastvex" / "state.json"
+    save_state(
+        state_path,
+        State(
+            history=[
+                ExecutionRecord(started_at="2026-05-26T12:00:00+00:00", status="success"),
+                ExecutionRecord(started_at="2026-05-26T12:05:00+00:00", status="success"),
+                ExecutionRecord(started_at="2026-05-26T12:10:00+00:00", status="success"),
+            ]
+        ),
+    )
+
+    report = clean_history(config=str(robot_project / "fastvex.yaml"), keep=1)
+    saved = load_state(state_path)
+
+    assert report.removed_count == 2
+    assert report.kept_count == 1
+    assert len(report.state.history) == 1
+    assert len(saved.history) == 1

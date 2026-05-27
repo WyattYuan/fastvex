@@ -113,7 +113,7 @@ def clean_history(
         return HistoryCleanReport(paths=paths, removed_count=0, kept_count=len(history), state=loaded_state)
 
     removed = len(history) - keep
-    loaded_state.history = history[-keep:]
+    loaded_state.history = history[-keep:] if keep > 0 else []
     save_state(paths.state, loaded_state)
     return HistoryCleanReport(paths=paths, removed_count=removed, kept_count=keep, state=loaded_state)
 

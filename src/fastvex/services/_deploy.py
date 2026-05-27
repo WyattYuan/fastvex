@@ -127,7 +127,8 @@ def deploy_slots(
     if not request.dry_run:
         history = list(plan.state.history)
         history.append(execution)
-        plan.state.history = history[-plan.settings.history_retention_count:]
+        limit = plan.settings.history_retention_count
+        plan.state.history = history[-limit:] if limit > 0 else []
         plan.state.active_execution = None
         save_state(plan.paths.state, plan.state)
 

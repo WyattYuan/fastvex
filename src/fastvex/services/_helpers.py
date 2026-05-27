@@ -58,7 +58,8 @@ def _recover_interrupted_execution(state: State) -> bool:
     state.updated_at = ended_at
     history = list(state.history)
     history.append(execution)
-    state.history = history[-default_settings().history_retention_count:]
+    limit = default_settings().history_retention_count
+    state.history = history[-limit:] if limit > 0 else []
     return True
 
 
