@@ -110,6 +110,18 @@ class RunOptions:
     yes: bool
 
 
+BUILD_FAILURE_MARKERS = (
+    "PROS toolchain not found",
+    "ERROR WHILE CALLING 'make'",
+)
+
+
+def _build_result_failed(result: CommandResult) -> bool:
+    if result.returncode != 0:
+        return True
+    return any(marker in result.output for marker in BUILD_FAILURE_MARKERS)
+
+
 def run_build(
     project_root: Path,
     slot: ResolvedSlot,
@@ -133,7 +145,7 @@ def run_build(
         last_command = cmd
         last_returncode = result.returncode
         last_output = result.output
-        if result.returncode == 0:
+        if not _build_result_failed(result):
             return StepRecord(
                 ok=True,
                 command=cmd,

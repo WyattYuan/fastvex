@@ -97,6 +97,36 @@ def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None
     assert state.current_slots == {}
 
 
+def test_pros_toolchain_error_output_does_not_update_build_signature(
+    robot_project: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(executor.os, "cpu_count", lambda: 1)
+    config = load_config(robot_project / "fastvex.yaml")
+    previous_signature = BuildSignature(profile="redDebug", route="left", build_args=[])
+    state = State(last_build_signature=previous_signature)
+    output = (
+        "WARNING - pros.conductor.project:make - PROS toolchain not found! "
+        "Please ensure the toolchain is installed correctly and your environment variables are set properly.\n"
+        "ERROR - pros.conductor.project:make - ERROR WHILE CALLING 'make' WITH EXCEPTION: "
+        "[WinError 2] system cannot find the file."
+    )
+    runner = FakeRunner(
+        {
+            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(0, output),
+            ("make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "make failed"),
+        }
+    )
+
+    execution = execute_deploy(robot_project, config, state, _options([3]), runner)
+
+    assert execution.status == "failed"
+    assert execution.builds[0].step.ok is False
+    assert "PROS toolchain not found" in execution.builds[0].step.error
+    assert not any(call[:2] == ["pros", "upload"] for call in runner.calls)
+    assert state.last_build_signature == previous_signature
+
+
 def test_dry_run_does_not_call_runner(robot_project: Path) -> None:
     config = load_config(robot_project / "fastvex.yaml")
     state = State()
