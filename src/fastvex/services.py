@@ -551,7 +551,7 @@ def _migrate_v1_data(data: dict[str, object]) -> tuple[dict[str, object], list[s
         if old_role not in role_map:
             raise ValidationError(f"v1 slot {slot} references unknown role '{old_role}'")
         old_route_set = role_route_set[old_role]
-        raw_route = raw_binding.get("route") or raw_active.get(old_route_set)
+        raw_route = raw_binding.get("route") or raw_active.get(old_route_set) # type: ignore[union-attr]
         if raw_route is None:
             raise ValidationError(f"v1 slot {slot} has no route and activeRoute.{old_route_set} is missing")
         route_key = route_key_map.get((old_route_set, str(raw_route)), _to_lower_camel(raw_route))
@@ -561,7 +561,7 @@ def _migrate_v1_data(data: dict[str, object]) -> tuple[dict[str, object], list[s
         }
 
     slot_groups: dict[str, list[int]] = {"all": list(range(1, 9))}
-    for old_group, raw_group_slots in raw_groups.items():
+    for old_group, raw_group_slots in raw_groups.items(): # type: ignore[union-attr]
         if not isinstance(raw_group_slots, list):
             warnings.append(f"skipped v1 group '{old_group}' because it is not a list")
             continue

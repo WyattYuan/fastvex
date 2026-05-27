@@ -124,7 +124,7 @@ def test_pros_toolchain_error_output_does_not_update_build_signature(
     assert execution.builds[0].step.ok is False
     assert "PROS toolchain not found" in execution.builds[0].step.error
     assert not any(call[:2] == ["pros", "upload"] for call in runner.calls)
-    assert state.last_build_signature == previous_signature
+    assert state.last_build_signature is None
 
 
 def test_dry_run_does_not_call_runner(robot_project: Path) -> None:
@@ -207,3 +207,29 @@ def test_state_model_reads_json_slot_keys_as_ints() -> None:
     )
 
     assert 3 in state.current_slots
+
+
+def test_profile_switch_invalidates_signature_immediately_on_touch(
+    robot_project: Path,
+    monkeypatch,
+) -> None:
+    config = load_config(robot_project / "fastvex.yaml")
+    previous_signature = BuildSignature(profile="redDebug", route="left", build_args=[])
+    state = State(last_build_signature=previous_signature)
+
+    runner = FakeRunner(
+        {
+            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "build failed"),
+            ("make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "build failed"),
+        }
+    )
+    monkeypatch.setattr(executor.os, "cpu_count", lambda: 1)
+    monkeypatch.setattr(
+        executor,
+        "find_compile_time_dependent_sources",
+        lambda project_root: [],
+    )
+
+    execute_deploy(robot_project, config, state, _options([3]), runner)
+
+    assert state.last_build_signature is None

@@ -227,6 +227,7 @@ def execute_deploy(
                 if state.last_build_signature != signature:
                     for touch_path in touch_files:
                         touch_path.touch()
+                    state.last_build_signature = None
 
                 if options.clean:
                     clean_result = runner.run(["make", "clean"], project_root, options.quiet)
