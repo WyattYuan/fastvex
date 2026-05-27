@@ -73,8 +73,6 @@
   - 全局缓存路径：`~/.fastvex/toolchain.json`。
 - `src/fastvex/display.py`
   - Rich 输出辅助。
-- `src/fastvex/config_edit.py`
-  - 保留文本格式的 YAML 更新辅助。
 - `tests/`
   - CLI、executor、services、toolchain 测试，含 fake PROS/make 工具链。
 - `scripts/check.ps1`
