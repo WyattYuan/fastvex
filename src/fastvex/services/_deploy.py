@@ -12,7 +12,8 @@ from . import (
 from ..models import ResolvedSlot, resolve_slot
 from ..project import resolve_project_paths
 from ..state_model import ExecutionRecord
-from ..storage import ValidationError, load_config, load_settings, save_state
+from ..errors import ValidationError
+from ..storage import load_config, load_settings, save_state
 
 
 def _resolve_targets(request: DeployRequest, config) -> tuple[list[int], bool, list[str]]:

@@ -17,7 +17,7 @@ from .state_model import (
     StepRecord,
     UploadRecord,
 )
-from .storage import get_git_username, get_hostname
+from .project import get_git_username, get_hostname
 
 
 BUILD_CONSTANTS = {

@@ -18,8 +18,8 @@ from pathlib import Path
 from ..models import Config, PROGRAM_NAME_LIMIT, ResolvedSlot, merge_build_args, resolve_slot, utc_now_iso
 from ..project import ProjectPaths
 from ..state_model import ExecutionRecord, Settings, State
+from ..errors import ValidationError
 from ..storage import (
-    ValidationError,
     default_settings,
     default_state,
     load_state,

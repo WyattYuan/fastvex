@@ -30,7 +30,7 @@ from .services import (
     show_toolchain,
     validate_project,
 )
-from .storage import ValidationError
+from .errors import ValidationError
 from .theme import FAIL, OK, WARN, confirm, console, err_console
 
 CommonConfig = Annotated[str | None, typer.Option("--config", help="Config file path.")]

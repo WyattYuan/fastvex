@@ -9,7 +9,8 @@ import yaml
 from . import MigrateReport, _backup_v1
 from ..models import Config
 from ..project import DEFAULT_CONFIG, LEGACY_CONFIG
-from ..storage import ValidationError, load_yaml
+from ..errors import ValidationError
+from ..storage import load_yaml
 
 
 def _to_lower_camel(value: object) -> str:

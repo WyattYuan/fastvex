@@ -2,40 +2,15 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from pathlib import Path
-from socket import gethostname
 from typing import Any
 
 import yaml
 from pydantic import ValidationError as PydanticValidationError
 
+from .errors import ValidationError
 from .models import Config
 from .state_model import Settings, State
-
-
-class ValidationError(Exception):
-    pass
-
-
-_cached_git_username: str | None = None
-
-
-def get_git_username() -> str:
-    global _cached_git_username
-    if _cached_git_username is not None:
-        return _cached_git_username
-    try:
-        _cached_git_username = subprocess.check_output(
-            ["git", "config", "user.name"], text=True
-        ).strip()
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        _cached_git_username = os.environ.get("USERNAME", os.environ.get("USER", "unknown"))
-    return _cached_git_username
-
-
-def get_hostname() -> str:
-    return gethostname()
 
 
 def _format_validation_error(error: PydanticValidationError) -> str:

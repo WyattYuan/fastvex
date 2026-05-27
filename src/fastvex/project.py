@@ -1,15 +1,37 @@
 from __future__ import annotations
 
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from socket import gethostname
 
-from .storage import ValidationError
+from .errors import ValidationError
 
 DEFAULT_CONFIG = "fastvex.yaml"
 LEGACY_CONFIG = "vex_upload_config.yaml"
 DEFAULT_STATE = ".fastvex/state.json"
 DEFAULT_SETTINGS = ".fastvex/settings.json"
 DEFAULT_LOCAL_GITIGNORE = ".fastvex/.gitignore"
+
+_cached_git_username: str | None = None
+
+
+def get_git_username() -> str:
+    global _cached_git_username
+    if _cached_git_username is not None:
+        return _cached_git_username
+    try:
+        _cached_git_username = subprocess.check_output(
+            ["git", "config", "user.name"], text=True
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        _cached_git_username = os.environ.get("USERNAME", os.environ.get("USER", "unknown"))
+    return _cached_git_username
+
+
+def get_hostname() -> str:
+    return gethostname()
 
 
 @dataclass(frozen=True)
