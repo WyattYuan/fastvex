@@ -6,6 +6,9 @@ from typing import Annotated
 
 import click
 import typer
+import typer.rich_utils as rich_utils
+from rich.panel import Panel as OriginalPanel
+from rich.table import Table as OriginalTable
 
 from . import __version__
 from .display import (
@@ -33,6 +36,20 @@ from .services import (
 from .errors import ValidationError
 from .theme import FAIL, OK, WARN, confirm, console, err_console
 
+# Monkeypatch Typer help panels/tables to fit content width
+class FitPanel(OriginalPanel):
+    def __init__(self, *args, **kwargs):
+        kwargs["expand"] = False
+        super().__init__(*args, **kwargs)
+
+class FitTable(OriginalTable):
+    def __init__(self, *args, **kwargs):
+        kwargs["expand"] = False
+        super().__init__(*args, **kwargs)
+
+setattr(rich_utils, "Panel", FitPanel)
+setattr(rich_utils, "Table", FitTable)
+
 CommonConfig = Annotated[str | None, typer.Option("--config", help="Config file path.")]
 CommonState = Annotated[str | None, typer.Option("--state", help="State file path.")]
 
@@ -40,11 +57,11 @@ app = typer.Typer(
     name="fastvex",
     help="Fast VEX slot-oriented deploy manager.",
     invoke_without_command=True,
-    context_settings={"help_option_names": ["-h", "--help"]},
+    context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 80},
 )
 history_app = typer.Typer(
     help="Show or clean history.",
-    context_settings={"help_option_names": ["-h", "--help"]},
+    context_settings={"help_option_names": ["-h", "--help"], "max_content_width": 80},
 )
 app.add_typer(history_app, name="history")
 
