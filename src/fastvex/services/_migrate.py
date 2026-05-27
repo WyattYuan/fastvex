@@ -6,7 +6,8 @@ from pathlib import Path
 
 import yaml
 
-from . import MigrateReport, _backup_v1
+from . import MigrateReport
+from ._helpers import _backup_v1
 from ..models import Config
 from ..project import DEFAULT_CONFIG, LEGACY_CONFIG
 from ..errors import ValidationError

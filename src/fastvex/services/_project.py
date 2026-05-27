@@ -8,10 +8,8 @@ from . import (
     HistoryReport,
     HistoryCleanReport,
     ToolchainReport,
-    _backup,
-    _load_state_resilient,
-    validate_config,
 )
+from ._helpers import _backup, _load_state_resilient, validate_config
 from ..project import DEFAULT_CONFIG, DEFAULT_STATE, LEGACY_CONFIG, resolve_project_paths
 from ..storage import (
     default_settings,
