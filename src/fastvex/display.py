@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
+from rich import box
 from rich.panel import Panel
+from rich.table import Table
 from rich.text import Text
+from rich.padding import Padding
 
 from .models import Config
-from .resolve import ResolvedSlot, build_arg_strings, resolve_slot
+from .resolve import ResolvedSlot, resolve_slot
 from .state_model import ExecutionRecord, State, StateSlotEntry
 from .theme import FAIL, OK, ROCKET, WARN, alliance_style, console
 
@@ -131,54 +134,113 @@ def _group_by_build(slots: list[ResolvedSlot]) -> OrderedDict[str, list[Resolved
 
 
 def print_deploy_plan(slots: list[ResolvedSlot]) -> None:
+    if not slots:
+        console.print("  [dim]No slots selected.[/dim]\n")
+        return
+
+    # Calculate max value length for each build arg key dynamically to ensure perfect vertical alignment
+    max_val_lens: dict[str, int] = {}
+    for slot in slots:
+        for arg in slot.build_args:
+            max_val_lens[arg.name] = max(max_val_lens.get(arg.name, 0), len(str(arg.value)))
+
     console.print()
-    for grouped_slots in _group_by_build(slots).values():
-        first = grouped_slots[0]
-        ps = alliance_style(first.profile)
-        console.print(f"  [bold cyan]Build[/bold cyan] [{ps}]{first.profile}[/{ps}]:{first.route}")
-        args = " ".join(build_arg_strings(first.build_args)) or "(none)"
-        console.print(f"    [dim]args:[/dim] {args}")
-        console.print("    [dim]upload:[/dim]")
-        for slot in grouped_slots:
-            pns = alliance_style(slot.program_name)
-            console.print(f"      slot {slot.slot} -> [{pns}]{slot.program_name}[/{pns}]")
+    table = Table(
+        title="[bold cyan]DEPLOYMENT PIPELINE SUMMARY[/bold cyan]",
+        title_justify="left",
+        box=box.ROUNDED,
+        border_style="dim",
+        header_style="bold white",
+    )
+    table.add_column("Slot", justify="center", style="bold white", no_wrap=True)
+    table.add_column("Build Profile (Route)", justify="left", no_wrap=True)
+    table.add_column("Compiler Flags", justify="left")
+    table.add_column("Program Name on Brain", justify="left", no_wrap=True)
+
+    for slot in sorted(slots, key=lambda s: s.slot):
+        ps = alliance_style(slot.profile)
+        pns = alliance_style(slot.program_name)
+        
+        formatted_args = []
+        for arg in slot.build_args:
+            max_len = max_val_lens[arg.name]
+            formatted_args.append(f"{arg.name}={arg.value:<{max_len}}")
+        args_str = "  ".join(formatted_args)
+        
+        flags = f"[yellow]{args_str}[/yellow]" if args_str else "[dim]-[/dim]"
+        
+        table.add_row(
+            f"{slot.slot:02d}",
+            f"[{ps}]{slot.profile}[/{ps}] [dim]({slot.route})[/dim]",
+            flags,
+            f"[{pns}]{slot.program_name}[/{pns}]",
+        )
+        
+    console.print(Padding(table, (0, 2)))
     console.print()
 
 
 def print_execution_result(execution: ExecutionRecord) -> None:
-    failed = [upload for upload in execution.uploads if upload.status != "success" or not upload.step.ok]
-    user_info = f"{execution.username}@{execution.hostname}"
-
+    # 1. Determine title and border style based on execution status
     if execution.status == "success":
-        status_display = Text(f"{OK} success", style="bold green")
+        border_style = "green"
+        title = " [bold green]✔ DEPLOYMENT SUCCESSFUL[/bold green] "
     elif execution.status == "failed":
-        status_display = Text(f"{FAIL} failed", style="bold red")
+        border_style = "red"
+        title = " [bold red]✘ DEPLOYMENT FAILED[/bold red] "
     else:
-        status_display = Text(f"{WARN} {execution.status}", style="yellow")
-
+        border_style = "yellow"
+        title = f" [bold yellow]DEPLOYMENT {execution.status.upper()}[/bold yellow] "
+        
     if execution.dry_run:
-        status_display.append(" [dry-run]", style="dim")
+        title += "[bold yellow][DRY-RUN][/bold yellow] "
 
-    lines: list[Text] = [
-        status_display,
-        Text(f"{ROCKET}  {user_info}", style="dim"),
-        Text(f"Duration: {execution.duration_sec}s"),
-        Text(f"Builds: {len(execution.builds)}"),
-        Text(f"Uploads: {len(execution.uploads)}"),
-    ]
+    # 2. Build metadata line
+    user_info = f"{execution.username}@{execution.hostname}"
+    
+    meta_line = Text()
+    meta_line.append("Host: ", style="dim")
+    meta_line.append(user_info, style="white")
+    meta_line.append("   Duration: ", style="dim")
+    meta_line.append(f"{execution.duration_sec:.2f}s", style="white")
+    meta_line.append("   Builds: ", style="dim")
+    meta_line.append(str(len(execution.builds)), style="white")
+    meta_line.append("   Uploads: ", style="dim")
+    meta_line.append(str(len(execution.uploads)), style="white")
 
-    if failed:
+    lines = [meta_line]
+
+    # 3. Build detailed upload summary
+    if execution.uploads:
         lines.append(Text(""))
-        lines.append(Text(f"{FAIL} Failed uploads:", style="bold red"))
-        for upload in failed:
-            detail = upload.reason or upload.step.error or "upload failed"
-            lines.append(Text(f"  slot {upload.slot}: {detail}", style="red"))
-    else:
-        lines.append(Text(f"{OK} All uploads OK", style="green"))
+        lines.append(Text("UPLOAD SUMMARY", style="bold white"))
+        for upload in execution.uploads:
+            pns = alliance_style(upload.program_name)
+            slot_str = f"  Slot {upload.slot:02d} ➔ "
+            
+            line = Text()
+            line.append(slot_str, style="dim")
+            line.append(f"{upload.program_name:<30}", style=pns)
+            
+            if upload.status == "success" and upload.step.ok:
+                line.append("  ✔ SUCCESS", style="bold green")
+                line.append(f"  ({upload.step.duration_sec:.2f}s)", style="dim")
+            else:
+                line.append("  ✘ FAILED", style="bold red")
+                err_detail = upload.reason or upload.step.error or "upload failed"
+                line.append(f"  ({err_detail})", style="red dim")
+            lines.append(line)
 
+    # 4. Generate the panel
     panel = Panel(
         Text("\n").join(lines),
-        border_style="cyan",
-        padding=(0, 1),
+        title=title,
+        title_align="left",
+        border_style=border_style,
+        padding=(1, 2),
+        expand=False,
     )
-    console.print(panel)
+    
+    console.print()
+    console.print(Padding(panel, (0, 2)))
+    console.print()

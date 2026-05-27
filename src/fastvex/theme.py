@@ -72,12 +72,12 @@ def alliance_style(text: str) -> str:
     """
     lower = text.lower()
     if "red" in lower:
-        return "red"
+        return "#ff5c5c"
     if "blue" in lower:
-        return "blue"
+        return "#60a5fa"
     if "skill" in lower:
-        return "yellow"
-    return "cyan"
+        return "#fbbf24"
+    return "#38bdf8"
 
 
 # ─── Timestamp ───────────────────────────────────────────────────────────────
