@@ -9,36 +9,30 @@
 
 - `fvx` 短命令，与 `fastvex` 完全等价
 - `--version` / `-v` 标志，输出版本号
-- dashboard 中根据 profile 名称自动以红/蓝/黄/青色显示
-- 紧凑版 dashboard 面板，每槽一行
-- 构建签名缓存：相同 profile + route + buildArgs 的槽位只编译一次
-- 增量编译优化：切换构建参数时自动 `touch` 依赖编译时常量（`kIsRed`、`kIsBlue` 等）的 `.cpp` 文件
-- 部署运行中记录：`deploy` 会保存 `activeExecution`，中断后下次读取状态时自动转为 `interrupted` 历史记录
-- 部署步骤级 checkpoint：build/upload 每步完成后即时保存已确认的构建签名、槽位状态和执行记录
+- dashboard 交互面板中根据配置名称自动进行彩色（红/蓝/黄/青等）高亮显示
+- 紧凑版 dashboard 槽位面板，每槽一行，显示更清爽直观
+- 编译去重机制：相同构建参数的槽位在单次部署中只编译一次，大幅节省多槽位部署耗时
+- 智能增量编译保护：切换槽位配置时，自动识别并重新编译受影响的代码文件，避免旧逻辑遗留问题
+- 部署断点与历史恢复机制：实时保存部署进度，即使中途意外中断，下次启动也能自动归档为“已中断”记录，不丢失已成功槽位的信息
+- C++ 项目配置集成最佳实践指南（包含 Makefile 变量与 constexpr 常量类型安全机制示例）
+- 全面补充 FAQ 常见问题解答与贡献指南，移除文档中全部留空占位符
 
 ### 变更
 
-- [BREAKING] 配置文件升级为 schema v2，结构完全重写：
-  - `roles` → `profiles`，`mode` 变为 buildArg `MODE`
-  - `routes`（路由集合）→ `alliances`（联队颜色），每条路线携带 `buildArgs`
-  - `activeRoute` 移除，每个槽位显式声明 `profile` + `route`
-  - `defaults.robotName` → `robot.name`
-  - `groups` → `slotGroups`
-  - 新增 `programName` 模板，支持 `{robot}`、`{team}`、`{profile}`、`{alliance}`、`{route}`、`{slot}` 占位符
-  - 必须显式定义全部 8 个槽位
-  - 旧版 `vex_upload_config.yaml` 需通过 `fastvex migrate` 迁移
-- 简化 toolchain 模块：移除磁盘缓存（`~/.fastvex/toolchain.json`），改为进程内缓存 + `shutil.which` 直接发现
-- `resolve_toolchain()` 返回类型从 `ToolchainCache` 改为 `str | None`
-- `get_toolchain_env()` 参数从 `ToolchainCache` 改为 `str | None`
-- `fastvex toolchain --rescan` 不再删除缓存文件，仅清除进程内缓存
-- 交互模式启动时检测 PROS 工具链，未找到则报错退出
+- [BREAKING] 配置文件升级为更直观的人性化 schema v2 结构：
+  - `roles` 变更为 `profiles`，编译参数整合进统一的 `buildArgs` 结构中
+  - `routes` 与 `activeRoute` 被整合为直观的 `alliances`（联队颜色）与 `slots` 槽位显式绑定关系
+  - 必须显式定义全部 8 个槽位，辅助开发者做好全局程序容量规划
+  - 新增 `programName` 智能命名模板，支持机器名、队号、配置名、联队等占位符变量
+  - 提供 `fastvex migrate` 迁移工具，一键无损升级旧版 `vex_upload_config.yaml` 配置文件
+- 优化工具链（PROS）检测机制，检索速度更快，并在交互面板启动时增加工具链缺失检测与友好引导提示
+- `fastvex toolchain --rescan` 清理工具链路径缓存并重新扫描
 
 ### 修复
 
-- CLI 无效参数的错误处理
-- Rich 控制台输出清理
-- Pydantic V2 `to_camel` alias_generator 修正状态序列化问题
-- `state.json` 改为原子写入，降低进程中断时状态文件损坏风险
+- 修复 CLI 输入无效参数时的错误反馈，输出更加友好的提示信息
+- 修复并美化 Rich 控制台的文字排版与错误堆栈展示
+- 升级底层状态文件（`state.json`）读写安全性，引入原子级文件写入，杜绝由于进程突然中断导致的状态文件损坏或半写问题
 
 ## [0.0.2] - 2026-05-25
 
@@ -49,13 +43,16 @@
 
 ## [0.0.1] - 2026-05-25
 
+这是 `fastvex` 的首个发布版本。本项目由机器人仓库中的内置脚本 `vex-upload-cli` 彻底重构、解耦而来，升级为一个独立的、通用的开箱即用 Python CLI 工具，在架构、配置和易用性上实现了重大飞跃。
+
 ### 新增
 
-- `fastvex init`：初始化项目配置和本机状态目录
-- `fastvex validate`：校验配置文件
-- `fastvex show`：展示槽位部署计划
-- `fastvex status`：展示本机记录的 Brain 槽位快照
-- `fastvex deploy`：构建并上传程序到 VEX Brain，支持 `--slots`、`--group`、`--dry-run`、`--clean`、`--port`、`-y`
-- `fastvex history show` / `fastvex history clean`：部署历史管理
-- `fastvex migrate`：从旧版 `vex_upload_config.yaml` 迁移
-- 交互式面板：运行 `fastvex` 进入交互模式，输入槽位号或分组名部署
+- **独立包设计与解耦**：彻底摆脱对特定机器人仓库的目录绑定，成为一个可通过 `uv` 独立分发与升级的通用 Python 库，支持在任何 PROS 项目中快速部署。
+- **现代化 CLI 框架重构**：弃用传统的 `argparse` 参数解析，基于轻量高效的 `Typer` 框架进行完全重载，命令行选项定义更加优雅且具备开箱即用的彩色反馈。
+- **命令行动作演进**：
+  - 新增 `fastvex deploy` 命令，将原 `upload` 动作升级为代表“构建+上传”完整生命周期的部署动作。
+  - 新增 `fastvex init` 命令，一键初始化配置文件与本机隔离状态。
+  - 新增 `fastvex migrate` 命令，支持从旧版内置的 `vex_upload_config.yaml` 无损升级到更具确定性的 v2 结构中。
+- **内聚的本地状态管理**：将原先暴露在项目根目录下、易受 Git 污染的 `vex_upload_state.json` 彻底收拢至 `.fastvex/` 隐藏目录中，并配备自动防污染的本地 `.gitignore`。
+- **全新的交互式 Dashboard 面板**：重构并美化了交互界面，输入 `fastvex` 即可直观查看 8 槽位图形化部署计划与最近部署历史。
+- **历史记录与审计功能**：新增 `fastvex history show` 和 `clean`，为程序组队员管理多次部署追溯提供详实的数据支持。

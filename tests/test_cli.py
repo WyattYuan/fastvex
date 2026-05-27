@@ -227,7 +227,12 @@ def test_deploy_uses_fake_pros_tools(
     assert "pros upload --slot 3 --name skillComp-main-Sparkle" in log
 
 
-def test_default_command_uses_compact_dashboard(robot_project: Path, monkeypatch, capsys) -> None:
+def test_default_command_uses_compact_dashboard(
+    robot_project: Path,
+    fake_tool_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
     monkeypatch.chdir(robot_project)
     monkeypatch.setattr(cli, "console", SimpleNamespace(input=lambda prompt: "q", print=lambda *args, **kwargs: None))
 
