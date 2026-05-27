@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .models import Config, utc_now_iso
-from .resolve import ResolvedSlot, build_arg_strings, resolve_slot
+from .models import utc_now_iso
+from .resolve import ResolvedSlot, build_arg_strings
 from .state_model import (
     BuildRecord,
     BuildSignature,
@@ -170,7 +170,7 @@ def run_build(
 
 def execute_deploy(
     project_root: Path,
-    config: Config,
+    deploy_slots: list[ResolvedSlot],
     state: State,
     options: RunOptions,
     runner: CommandRunner | None = None,
@@ -181,9 +181,6 @@ def execute_deploy(
     start_ts = utc_now_iso()
     started = time.perf_counter()
     touch_files = find_compile_time_dependent_sources(project_root)
-
-    resolved_slots = [resolve_slot(config, slot) for slot in options.slots]
-    deploy_slots = [slot for slot in resolved_slots if slot is not None]
 
     builds: list[BuildRecord] = []
     uploads: list[UploadRecord] = []

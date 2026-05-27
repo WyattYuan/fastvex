@@ -110,7 +110,7 @@ def deploy_slots(
 
     execution = execute_deploy(
         project_root=plan.paths.root,
-        config=plan.config,
+        deploy_slots=plan.deploy_slots,
         state=plan.state,
         options=RunOptions(
             slots=[slot.slot for slot in plan.deploy_slots],

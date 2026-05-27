@@ -4,6 +4,7 @@ from pathlib import Path
 
 import fastvex.executor as executor
 from fastvex.executor import CommandResult, CommandRunner, RunOptions, execute_deploy
+from fastvex.resolve import resolve_slot
 from fastvex.state_model import BuildSignature
 from fastvex.state_model import State
 from fastvex.storage import load_config
@@ -31,12 +32,17 @@ def _options(slots: list[int], *, dry_run: bool = False) -> RunOptions:
     )
 
 
+def _resolved(config, slots: list[int]):
+    """Pre-resolve slot numbers into ResolvedSlot objects."""
+    return [s for n in slots if (s := resolve_slot(config, n)) is not None]
+
+
 def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
     config = load_config(robot_project / "fastvex.yaml")
     state = State()
     runner = FakeRunner()
 
-    execution = execute_deploy(robot_project, config, state, _options([3]), runner)
+    execution = execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert execution.status == "success"
     assert execution.builds[0].step.command == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
@@ -64,7 +70,7 @@ def test_execute_deploy_checkpoints_confirmed_progress(robot_project: Path) -> N
 
     execute_deploy(
         robot_project,
-        config,
+        _resolved(config, [3]),
         state,
         _options([3]),
         runner,
@@ -90,7 +96,7 @@ def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None
         }
     )
 
-    execution = execute_deploy(robot_project, config, state, _options([3]), runner)
+    execution = execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert execution.status == "failed"
     assert not any(call[:2] == ["pros", "upload"] for call in runner.calls)
@@ -118,7 +124,7 @@ def test_pros_toolchain_error_output_does_not_update_build_signature(
         }
     )
 
-    execution = execute_deploy(robot_project, config, state, _options([3]), runner)
+    execution = execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert execution.status == "failed"
     assert execution.builds[0].step.ok is False
@@ -132,7 +138,9 @@ def test_dry_run_does_not_call_runner(robot_project: Path) -> None:
     state = State()
     runner = FakeRunner()
 
-    execution = execute_deploy(robot_project, config, state, _options([3], dry_run=True), runner)
+    execution = execute_deploy(
+        robot_project, _resolved(config, [3]), state, _options([3], dry_run=True), runner
+    )
 
     assert execution.status == "success"
     assert runner.calls == []
@@ -151,7 +159,7 @@ def test_profile_switch_touches_compile_time_dependent_sources(robot_project: Pa
     state = State()
     state.last_build_signature = BuildSignature(profile="redDebug", route="left", build_args=[])
 
-    execute_deploy(robot_project, config, state, _options([3]), FakeRunner())
+    execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), FakeRunner())
 
     assert source.stat().st_mtime_ns > before
 
@@ -186,7 +194,7 @@ def test_profile_switch_tracks_successful_build_even_when_upload_fails(
         }
     )
 
-    execute_deploy(robot_project, config, state, _options([4, 3]), runner)
+    execute_deploy(robot_project, _resolved(config, [4, 3]), state, _options([4, 3]), runner)
 
     assert probe.count == 2
 
@@ -230,6 +238,6 @@ def test_profile_switch_invalidates_signature_immediately_on_touch(
         lambda project_root: [],
     )
 
-    execute_deploy(robot_project, config, state, _options([3]), runner)
+    execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert state.last_build_signature is None

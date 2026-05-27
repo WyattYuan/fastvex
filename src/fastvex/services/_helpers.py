@@ -11,9 +11,8 @@ from pathlib import Path
 
 from ..errors import ValidationError
 from ..models import Config, utc_now_iso
-from ..project import ProjectPaths
 from ..resolve import PROGRAM_NAME_LIMIT, merge_build_args, resolve_slot
-from ..state_model import ExecutionRecord, State
+from ..state_model import State
 from ..storage import default_settings, default_state, load_state, save_state
 
 
