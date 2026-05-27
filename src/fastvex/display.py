@@ -5,7 +5,8 @@ from collections import OrderedDict
 from rich.panel import Panel
 from rich.text import Text
 
-from .models import Config, ResolvedSlot, build_arg_strings, resolve_slot
+from .models import Config
+from .resolve import ResolvedSlot, build_arg_strings, resolve_slot
 from .state_model import ExecutionRecord, State, StateSlotEntry
 from .theme import FAIL, OK, ROCKET, WARN, console
 

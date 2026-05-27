@@ -9,7 +9,7 @@ from . import (
     parse_slot_expr,
     validate_config,
 )
-from ..models import ResolvedSlot, resolve_slot
+from ..resolve import ResolvedSlot, resolve_slot
 from ..project import resolve_project_paths
 from ..state_model import ExecutionRecord
 from ..errors import ValidationError

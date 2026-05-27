@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from .models import Config, ResolvedSlot, build_arg_strings, resolve_slot, utc_now_iso
+from .models import Config, utc_now_iso
+from .resolve import ResolvedSlot, build_arg_strings, resolve_slot
 from .state_model import (
     BuildRecord,
     BuildSignature,

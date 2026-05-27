@@ -15,7 +15,8 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..models import Config, PROGRAM_NAME_LIMIT, ResolvedSlot, merge_build_args, resolve_slot, utc_now_iso
+from ..models import Config, utc_now_iso
+from ..resolve import PROGRAM_NAME_LIMIT, ResolvedSlot, merge_build_args, resolve_slot
 from ..project import ProjectPaths
 from ..state_model import ExecutionRecord, Settings, State
 from ..errors import ValidationError
