@@ -87,14 +87,17 @@ class SubprocessRunner(CommandRunner):
         env = {**os.environ, **self._toolchain_env} if self._toolchain_env else None
         resolved_args = list(args)
         resolved_args[0] = _resolve_executable(resolved_args[0], env=env)
-        proc = subprocess.run(
-            resolved_args,
-            cwd=str(cwd),
-            text=True,
-            capture_output=quiet,
-            check=False,
-            env=env,
-        )
+        try:
+            proc = subprocess.run(
+                resolved_args,
+                cwd=str(cwd),
+                text=True,
+                capture_output=quiet,
+                check=False,
+                env=env,
+            )
+        except FileNotFoundError:
+            return CommandResult(127, f"command not found: {resolved_args[0]}")
         out = ""
         if quiet:
             out = ((proc.stdout or "") + "\n" + (proc.stderr or "")).strip()

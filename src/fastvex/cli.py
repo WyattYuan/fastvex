@@ -231,6 +231,13 @@ def deploy_command(
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Plan without build/upload.")] = False,
     yes: Annotated[bool, typer.Option("-y", "--yes", help="Skip confirm prompt.")] = False,
 ) -> None:
+    from .toolchain import resolve_toolchain
+
+    if not resolve_toolchain():
+        err_console.print(f"  [bold red]{FAIL} PROS toolchain not found.[/bold red]")
+        err_console.print("  [dim]Please use fastvex in PROS Terminal![/dim]")
+        _finish(1)
+
     options = _ctx_options(ctx, config, state)
     request = _deploy_request(
         slots=slots,
