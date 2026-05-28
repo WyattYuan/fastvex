@@ -96,7 +96,7 @@ class SubprocessRunner(CommandRunner):
                 check=False,
                 env=env,
             )
-        except FileNotFoundError:
+        except OSError:
             return CommandResult(127, f"command not found: {resolved_args[0]}")
         out = ""
         if quiet:

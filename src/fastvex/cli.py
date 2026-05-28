@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
 import typer.rich_utils as rich_utils
 from rich.panel import Panel as OriginalPanel
@@ -358,17 +359,11 @@ def main(argv: list[str] | None = None, prog_name: str | None = None) -> int:
     except KeyboardInterrupt:
         err_console.print(f"\n  [yellow]{WARN} interrupted[/yellow]\n")
         return 130
-    except Exception as exc:
-        # Catch click/typer exceptions robustly to handle both standard and vendored click
-        if any(cls.__name__ == "Exit" and "click" in cls.__module__ for cls in type(exc).__mro__):
-            return int(getattr(exc, "exit_code", 1))
-        if any(cls.__name__ == "ClickException" and "click" in cls.__module__ for cls in type(exc).__mro__):
-            if hasattr(exc, "show"):
-                getattr(exc, "show")(file=err_console.file)
-            else:
-                err_console.print(f"Error: {exc}")
-            return int(getattr(exc, "exit_code", 1))
-        raise
+    except click.exceptions.Exit as exc:
+        return int(exc.exit_code)
+    except click.exceptions.ClickException as exc:
+        exc.show(file=err_console.file)
+        return int(exc.exit_code)
 
 
 if __name__ == "__main__":

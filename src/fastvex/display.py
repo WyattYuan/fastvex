@@ -184,10 +184,10 @@ def print_execution_result(execution: ExecutionRecord) -> None:
     # 1. Determine title and border style based on execution status
     if execution.status == "success":
         border_style = "green"
-        title = " [bold green]DEPLOYMENT SUCCESSFUL[/bold green] "
+        title = f" [bold green]{OK} DEPLOYMENT SUCCESSFUL[/bold green] "
     elif execution.status == "failed":
         border_style = "red"
-        title = " [bold red]DEPLOYMENT FAILED[/bold red] "
+        title = f" [bold red]{FAIL} DEPLOYMENT FAILED[/bold red] "
     else:
         border_style = "yellow"
         title = f" [bold yellow]DEPLOYMENT {execution.status.upper()}[/bold yellow] "
