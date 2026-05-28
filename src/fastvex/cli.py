@@ -234,7 +234,7 @@ def deploy_command(
 ) -> None:
     from .toolchain import resolve_toolchain
 
-    if not resolve_toolchain():
+    if not dry_run and not resolve_toolchain():
         err_console.print(f"  [bold red]{FAIL} PROS toolchain not found.[/bold red]")
         err_console.print("  [dim]Please use fastvex in PROS Terminal![/dim]")
         _finish(1)
