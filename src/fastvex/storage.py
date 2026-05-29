@@ -13,6 +13,15 @@ from .models import Config
 from .state_model import Settings, State
 
 
+def _ensure_fastvex_gitignore(dirpath: Path) -> None:
+    """Write .gitignore with '*' into the .fastvex directory if missing."""
+    from .templates import DEFAULT_LOCAL_GITIGNORE_TEXT
+
+    gitignore = dirpath / ".gitignore"
+    if not gitignore.exists():
+        gitignore.write_text(DEFAULT_LOCAL_GITIGNORE_TEXT, encoding="utf-8")
+
+
 def _format_validation_error(error: PydanticValidationError) -> str:
     first = error.errors()[0] if error.errors() else {}
     location = ".".join(str(part) for part in first.get("loc", []))
@@ -68,6 +77,7 @@ def load_state(path: Path) -> State:
 
 def save_state(path: Path, state: State) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_fastvex_gitignore(path.parent)
     tmp_path = path.with_name(f"{path.name}.tmp")
     with tmp_path.open("w", encoding="utf-8", newline="\n") as f:
         json.dump(state.model_dump(by_alias=True, mode="json"), f, ensure_ascii=True, indent=2)
@@ -96,6 +106,7 @@ def load_settings(path: Path) -> tuple[Settings, list[str]]:
 
 def save_settings(path: Path, settings: Settings) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_fastvex_gitignore(path.parent)
     with path.open("w", encoding="utf-8", newline="\n") as f:
         json.dump(settings.model_dump(by_alias=True, mode="json"), f, ensure_ascii=True, indent=2)
         f.write("\n")

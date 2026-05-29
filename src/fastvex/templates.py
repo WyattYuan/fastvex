@@ -88,6 +88,4 @@ DEFAULT_SETTINGS_TEXT = """{
 }
 """
 
-DEFAULT_LOCAL_GITIGNORE_TEXT = """*
-!.gitignore
-"""
+DEFAULT_LOCAL_GITIGNORE_TEXT = "*\n"
