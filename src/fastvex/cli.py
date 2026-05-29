@@ -275,11 +275,11 @@ def deploy_command(
 def migrate_command(
     ctx: typer.Context,
     config: Annotated[str | None, typer.Option("--config", help="v1 config path.")] = None,
-    output: Annotated[str | None, typer.Option("--output", help="Output path for generated v2 YAML.")] = None,
-    write: Annotated[bool, typer.Option("--write", help="Write fastvex.yaml after backing up v1.")] = False,
+    output: Annotated[str | None, typer.Option("--output", help="Output path for generated YAML.")] = None,
+    in_place: Annotated[bool, typer.Option("--in-place/--no-in-place", help="Write fastvex.yaml and backup v1.")] = True,
 ) -> None:
     options = _ctx_options(ctx, config, None)
-    report = migrate_project(config=options["config"], output=output, write=write)
+    report = migrate_project(config=options["config"], output=output, in_place=in_place)
     for warning in report.warnings:
         console.print(f"  {WARN} {warning}")
     action = "wrote" if report.wrote_in_place else "generated"

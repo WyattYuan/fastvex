@@ -157,7 +157,7 @@ def migrate_project(
     config: str | None = None,
     output: str | None = None,
     *,
-    write: bool = False,
+    in_place: bool = True,
 ) -> MigrateReport:
     source = _find_migration_source(config)
     data = load_yaml(source)
@@ -165,23 +165,30 @@ def migrate_project(
         raise ValidationError("config already uses schemaVersion 2")
     migrated, warnings = _migrate_v1_data(data)
 
-    if write:
+    if in_place and not output:
         output_path = source.with_name(DEFAULT_CONFIG)
-        if output_path.exists():
-            _backup_v1(output_path)
+        _backup_v1(source)
     else:
-        output_path = Path(output) if output else source.with_name("fastvex.v2.yaml")
+        output_path = Path(output) if output else source.with_name(DEFAULT_CONFIG)
         if not output_path.is_absolute():
             output_path = source.parent / output_path
-        if output_path.exists():
+        if output_path.exists() and output_path.resolve() != source.resolve():
             raise ValidationError(f"output file already exists: {output_path}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     text = yaml.safe_dump(migrated, sort_keys=False, allow_unicode=True)
     output_path.write_text(text, encoding="utf-8")
+    
+    # If we backed up source but source and output_path have different names
+    # (e.g. source is vex_upload_config.yaml, output is fastvex.yaml)
+    # we should also remove the source file to actually "rename" it, 
+    # instead of just creating a backup and leaving the original legacy config.
+    if in_place and not output and source.name != output_path.name and source.exists():
+        source.unlink()
+        
     return MigrateReport(
         source=source,
         output=output_path.resolve(),
-        wrote_in_place=write,
+        wrote_in_place=(in_place and not output),
         warnings=warnings,
     )

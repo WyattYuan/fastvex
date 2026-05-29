@@ -129,14 +129,18 @@ def test_migrate_generates_v2_draft_from_legacy_config(tmp_path: Path, monkeypat
 
     assert main(["migrate"]) == 0
 
-    output = tmp_path / "fastvex.v2.yaml"
+    output = tmp_path / "fastvex.yaml"
     text = output.read_text(encoding="utf-8")
     assert "schemaVersion: 2" in text
     assert "redComp:" in text
     assert "allEnabled:" in text
     assert "profile: redComp" in text
     captured = capsys.readouterr()
-    assert "generated" in captured.out
+    assert "wrote" in captured.out
+    
+    backups = list(tmp_path.glob("vex_upload_config.v1.backup.*.yaml"))
+    assert len(backups) == 1
+    assert not (tmp_path / "vex_upload_config.yaml").exists()
 
 
 def test_migrate_accepts_global_config_option(tmp_path: Path) -> None:
@@ -152,7 +156,7 @@ def test_migrate_write_backs_up_v1_fastvex(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "fastvex.yaml").write_text(V1_CONFIG, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
 
-    assert main(["migrate", "--write"]) == 0
+    assert main(["migrate"]) == 0
 
     assert "schemaVersion: 2" in (tmp_path / "fastvex.yaml").read_text(encoding="utf-8")
     assert list(tmp_path.glob("fastvex.v1.backup.*.yaml"))
