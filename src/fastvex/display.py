@@ -212,19 +212,22 @@ def print_execution_result(execution: ExecutionRecord) -> None:
 
     # 3. Build detailed upload summary
     if execution.uploads:
+        build_lookup = {b.id: b for b in execution.builds}
         lines.append(Text(""))
         lines.append(Text("UPLOAD SUMMARY", style="bold white"))
         for upload in execution.uploads:
             pns = alliance_style(upload.program_name)
             slot_str = f"  Slot {upload.slot:02d} {ROCKET} "
-            
+
             line = Text()
             line.append(slot_str, style="dim")
             line.append(f"{upload.program_name:<30}", style=pns)
-            
+
             if upload.status == "success" and upload.step.ok:
+                build = build_lookup.get(upload.build_id)
+                combined = upload.step.duration_sec + (build.step.duration_sec if build else 0)
                 line.append(f"  {OK} SUCCESS", style="bold green")
-                line.append(f"  ({upload.step.duration_sec:.2f}s)", style="dim")
+                line.append(f"  ({combined:.2f}s)", style="dim")
             else:
                 line.append(f"  {FAIL} FAILED", style="bold red")
                 err_detail = upload.reason or upload.step.error or "upload failed"
