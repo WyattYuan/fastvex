@@ -10,7 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-KEY_RE = re.compile(r"^[a-z][A-Za-z0-9]*$")
+KEY_RE = re.compile(r"^[a-z]([A-Za-z0-9]*(_[a-z0-9][A-Za-z0-9]*)*)?$")
 BUILD_ARG_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 PROGRAM_NAME_VARS = {"robot", "team", "profile", "alliance", "route", "slot"}
 
@@ -54,9 +54,17 @@ class ProgramName(FastVexModel):
             if field_name is None:
                 continue
             if format_spec or conversion:
-                raise ValueError("programName.template only supports simple {name} placeholders")
+                raise ValueError(
+                    f"programName.template does not support format specs or conversions "
+                    f"(found '{{{field_name}}}' with extra syntax); "
+                    f"use simple placeholders like '{{robot}}' or '{{profile}}'"
+                )
             if field_name not in PROGRAM_NAME_VARS:
-                raise ValueError(f"unknown programName variable '{field_name}'")
+                allowed = ", ".join(sorted(PROGRAM_NAME_VARS))
+                raise ValueError(
+                    f"unknown placeholder '{{{field_name}}}' in programName.template; "
+                    f"allowed: {allowed}"
+                )
         return text
 
 
@@ -90,7 +98,11 @@ class Profile(FastVexModel):
     def validate_alliance(cls, value: str) -> str:
         text = str(value).strip()
         if not KEY_RE.match(text):
-            raise ValueError("alliance must be lower camel case")
+            raise ValueError(
+                f"alliance reference '{text}' is invalid: "
+                f"must start with a lowercase letter, use camelCase or snake_case "
+                f"(e.g. 'redAlliance' or 'red_alliance')"
+            )
         return text
 
     @field_validator("build_args", mode="before")
@@ -108,7 +120,11 @@ class SlotBinding(FastVexModel):
     def validate_ref(cls, value: str) -> str:
         text = str(value).strip()
         if not KEY_RE.match(text):
-            raise ValueError("reference must be lower camel case")
+            raise ValueError(
+                f"'{text}' is invalid: "
+                f"must start with a lowercase letter, use camelCase or snake_case "
+                f"(e.g. 'myProfile' or 'my_profile')"
+            )
         return text
 
 
@@ -215,7 +231,10 @@ def validate_keys(mapping: dict[Any, Any], label: str) -> None:
     for key in mapping:
         text = str(key)
         if not KEY_RE.match(text):
-            raise ValueError(f"{label} '{text}' must match [a-z][A-Za-z0-9]*")
+            raise ValueError(
+                f"{label} key '{text}' is invalid: must start with a lowercase letter, "
+                f"use camelCase or snake_case (e.g. 'myKey' or 'my_key')"
+            )
 
 
 def normalize_build_args(value: Any) -> dict[str, str]:
