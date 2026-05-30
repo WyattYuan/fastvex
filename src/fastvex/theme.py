@@ -50,34 +50,26 @@ ROCKET = "->"
 # ─── Color/style constants ────────────────────────────────────────────────────
 
 
-def role_tone(route_set: str, mode: str) -> tuple[str, bool]:
-    """Return (color_name, is_dim). Rich uses named colors."""
-    rs = route_set.lower()
-    is_debug = "DEBUG" in mode.upper()
-
-    if rs == "red":
-        return ("red",    False) if not is_debug else ("magenta",  False)
-    if rs == "blue":
-        return ("blue",   False) if not is_debug else ("cyan",     False)
-    if rs == "skill":
-        return ("yellow", False) if not is_debug else ("green",    False)
-    return ("cyan", False)
-
-
 def alliance_style(text: str) -> str:
-    """Return a Rich color name for an alliance/profile/program-name string.
+    """Return a Rich style string for an alliance/profile/program-name string.
 
     Single source of truth for the red/blue/skill → color mapping used
-    throughout the display layer.
+    throughout the display layer.  Debug profiles are rendered in bold
+    so that e.g. ``redComp`` and ``redDebug`` are visually distinct
+    without changing the base colour.
     """
     lower = text.lower()
     if "red" in lower:
-        return "#ff5c5c"
-    if "blue" in lower:
-        return "#60a5fa"
-    if "skill" in lower:
-        return "#fbbf24"
-    return "#38bdf8"
+        base = "#ff5c5c"
+    elif "blue" in lower:
+        base = "#60a5fa"
+    elif "skill" in lower:
+        base = "#fbbf24"
+    else:
+        base = "#38bdf8"
+    if "debug" in lower:
+        return f"{base} bold"
+    return base
 
 
 # ─── Timestamp ───────────────────────────────────────────────────────────────
