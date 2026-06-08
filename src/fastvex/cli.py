@@ -235,7 +235,7 @@ def clean_command(
     elif report.state_reset:
         console.print(f"  [green]{OK} state reset[/green] {report.paths.state}")
     else:
-        console.print(f"  [dim]nothing to clean[/dim]")
+        console.print("  [dim]nothing to clean[/dim]")
 
 
 @app.command("deploy")
