@@ -69,10 +69,7 @@
 
 ## 5. 编码约定
 
-- **提交规范**：严格遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式（例如 `feat(deploy): ...`, `fix(toolchain): ...`），保持 git 记录整洁。
+- **提交规范**：严格遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式（例如 `feat(deploy): ...`, `fix(toolchain): ...`），保持 git 记录整洁。提交信息应为中文。
 - **文档语言**：除非用户另有要求，所有面向使用者的文档（README.md 等）和状态更新默认保持中文。
 - **架构解耦**：本仓库作为通用 VEX/PROS 管理工具，严禁侵入式硬编码任何特定机器人（如 PushBack-Linyun）仓库的专属非通用逻辑。
-
-
-## git 提交规范
-- **提交规范**：严格遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式（例如 `feat(deploy): ...`, `fix(toolchain): ...`），保持 git 记录整洁。提交信息应为中文。
+- **CHANGELOG 面向用户**：`CHANGELOG.md` 是给最终用户看的文档，只记录影响用户使用的变更（新命令、行为变化、Bug 修复）。内部开发工具链改动（如 pytest-cov、pyright、CI 配置、重构细节）不应出现在 CHANGELOG 中。
