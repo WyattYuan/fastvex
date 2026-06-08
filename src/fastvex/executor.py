@@ -135,8 +135,8 @@ def run_build(
     common_suffix = build_arg_strings(slot.build_args)
 
     candidates = [
-        ["pros", "make", *common_suffix],
         ["make", *common_suffix],
+        ["pros", "make", *common_suffix],
     ]
 
     errors: list[str] = []

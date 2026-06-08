@@ -45,7 +45,7 @@ def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
     execution = execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert execution.status == "success"
-    assert execution.builds[0].step.command == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
+    assert execution.builds[0].step.command == ["make", "MODE=SKILL_COMP", "ROUTE=0"]
     assert execution.builds[0].step.returncode == 0
     assert execution.uploads[0].step.command == [
         "pros",
@@ -55,7 +55,7 @@ def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
         "--name",
         "skillComp-main-Sparkle",
     ]
-    assert runner.calls[0] == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
+    assert runner.calls[0] == ["make", "MODE=SKILL_COMP", "ROUTE=0"]
     assert runner.calls[1] == ["pros", "upload", "--slot", "3", "--name", "skillComp-main-Sparkle"]
     assert 3 in state.current_slots
 

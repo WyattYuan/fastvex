@@ -227,7 +227,7 @@ def test_deploy_uses_fake_pros_tools(
     assert main(["deploy", "--slots", "3", "-y", "--quiet"]) == 0
 
     log = fake_tool_path.read_text(encoding="utf-8")
-    assert "pros make MODE=SKILL_COMP ROUTE=0" in log
+    assert "make MODE=SKILL_COMP ROUTE=0" in log
     assert "pros upload --slot 3 --name skillComp-main-Sparkle" in log
 
 
@@ -258,17 +258,17 @@ def test_show_displays_slot_plan(robot_project: Path, monkeypatch, capsys) -> No
     assert "skillComp-main-Sparkle" in captured.out
 
 
-def test_pros_make_failure_falls_back_to_make(
+def test_make_failure_falls_back_to_pros_make(
     robot_project: Path,
     fake_tool_path: Path,
     monkeypatch,
 ) -> None:
     monkeypatch.chdir(robot_project)
-    monkeypatch.setenv("FASTVEX_PROS_MAKE_FAIL", "1")
+    monkeypatch.setenv("FASTVEX_MAKE_FAIL", "1")
 
     assert main(["deploy", "--slots", "3", "-y", "--quiet"]) == 0
 
     log = fake_tool_path.read_text(encoding="utf-8")
-    assert "pros make MODE=SKILL_COMP ROUTE=0" in log
     assert "make MODE=SKILL_COMP ROUTE=0" in log
+    assert "pros make MODE=SKILL_COMP ROUTE=0" in log
     assert "pros upload --slot 3" in log
