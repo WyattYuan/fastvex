@@ -72,3 +72,7 @@
 - **提交规范**：严格遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式（例如 `feat(deploy): ...`, `fix(toolchain): ...`），保持 git 记录整洁。
 - **文档语言**：除非用户另有要求，所有面向使用者的文档（README.md 等）和状态更新默认保持中文。
 - **架构解耦**：本仓库作为通用 VEX/PROS 管理工具，严禁侵入式硬编码任何特定机器人（如 PushBack-Linyun）仓库的专属非通用逻辑。
+
+
+## git 提交规范
+- **提交规范**：严格遵循 [Conventional Commits](https://www.conventionalcommits.org/) 格式（例如 `feat(deploy): ...`, `fix(toolchain): ...`），保持 git 记录整洁。提交信息应为中文。
