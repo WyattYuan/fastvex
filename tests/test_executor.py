@@ -4,7 +4,7 @@ from pathlib import Path
 
 import fastvex.executor as executor
 from fastvex.executor import CommandResult, CommandRunner, RunOptions, execute_deploy
-from fastvex.resolve import resolve_slot
+from fastvex.resolve import ResolvedSlot, resolve_slot
 from fastvex.state_model import BuildSignature
 from fastvex.state_model import State
 from fastvex.storage import load_config
@@ -240,3 +240,47 @@ def test_profile_switch_invalidates_signature_immediately_on_touch(
     execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert state.last_build_signature is None
+
+
+def test_dedup_slots_are_grouped_by_signature(robot_project: Path) -> None:
+    """Same-signature slots separated by a different signature must be
+    reordered so that all uploads happen before the next build overwrites bin/.
+    """
+    from fastvex.models import BuildArg
+
+    slot_a1 = ResolvedSlot(
+        slot=1, profile="redComp", alliance="red", route="left",
+        build_args=[BuildArg(name="MODE", value="RED_COMP"), BuildArg(name="ROUTE", value="0")],
+        program_name="redComp-left-Sparkle",
+    )
+    slot_b = ResolvedSlot(
+        slot=2, profile="blueComp", alliance="blue", route="left",
+        build_args=[BuildArg(name="MODE", value="BLUE_COMP"), BuildArg(name="ROUTE", value="0")],
+        program_name="blueComp-left-Sparkle",
+    )
+    slot_a2 = ResolvedSlot(
+        slot=3, profile="redComp", alliance="red", route="left",
+        build_args=[BuildArg(name="MODE", value="RED_COMP"), BuildArg(name="ROUTE", value="0")],
+        program_name="redComp-left-Sparkle",
+    )
+
+    # Input order: A1, B, A2 — same-signature slots (A1, A2) are non-adjacent
+    runner = FakeRunner()
+    state = State()
+    execution = execute_deploy(
+        robot_project, [slot_a1, slot_b, slot_a2], state, _options([1, 2, 3]), runner,
+    )
+
+    assert execution.status == "success"
+
+    # A1 and A2 share a signature → only 2 builds total (not 3)
+    assert len(execution.builds) == 2
+
+    # Both A slots must be uploaded before the B build happens.
+    # Extract the upload slot order to verify grouping.
+    upload_slots = [u.slot for u in execution.uploads]
+    a_positions = [i for i, s in enumerate(upload_slots) if s in (1, 3)]
+    b_positions = [i for i, s in enumerate(upload_slots) if s == 2]
+    # All A uploads must come before all B uploads (or vice versa),
+    # i.e. they must not be interleaved.
+    assert max(a_positions) < min(b_positions) or max(b_positions) < min(a_positions)

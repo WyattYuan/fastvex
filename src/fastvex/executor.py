@@ -213,7 +213,15 @@ def execute_deploy(
     if not options.dry_run:
         checkpoint_now()
 
-    for slot in deploy_slots:
+    # Sort by build signature so same-signature slots are adjacent.
+    # This ensures uploads happen right after their build, before a
+    # different profile overwrites bin/.
+    ordered_slots = sorted(
+        deploy_slots,
+        key=lambda s: BuildSignature.from_slot(s).model_dump_json(),
+    )
+
+    for slot in ordered_slots:
         signature = BuildSignature.from_slot(slot)
         signature_key = signature.model_dump_json()
         build = built.get(signature_key)
