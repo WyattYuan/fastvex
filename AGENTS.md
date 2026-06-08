@@ -59,6 +59,11 @@
 | `uv run ruff check .` | 执行 Ruff 静态代码扫描与排错 |
 | `uv run pytest` | 运行全部测试套件 |
 | `.\scripts\check.ps1` | 一键运行 Ruff 静态检查及全部 pytest（通过率为最终标准） |
+
+> **Git Hooks**：仓库使用 `core.hooksPath` 指向 `scripts/hooks/`，pre-commit hook 会在每次提交前自动运行 `check.ps1`。克隆后需执行一次：
+> ```powershell
+> git config core.hooksPath scripts/hooks
+> ```
 | `uv run pytest tests\test_executor.py tests\test_services.py` | 运行涉及部署执行、断点 checkpoint 及服务层中断恢复的专项测试 |
 | `uv run pytest tests\test_toolchain.py` | 运行工具链定位与解析逻辑的专项测试 |
 | `uv run --project D:\100Code\VEX\fastvex --directory D:\100Code\VEX\VEX-PushBack-Linyun fastvex validate` | 在真实机器人项目中冒烟测试配置文件的校验表现 |

@@ -1,0 +1,7 @@
+#!/bin/sh
+# fastvex pre-commit hook: run full check pipeline before committing.
+# Runs pyright, ruff, pytest, build, and install verification.
+
+echo "[pre-commit] Running scripts/check.ps1 ..."
+powershell -ExecutionPolicy Bypass -File "$(git rev-parse --show-toplevel)/scripts/check.ps1"
+exit $?
