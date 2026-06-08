@@ -90,6 +90,7 @@ fastvex 会自动调用 PROS 构建、上传到主控，相同构建参数的槽
 | `fastvex deploy --slots 1,3` | 构建并上传指定槽位 |
 | `fastvex deploy --group all` | 按配置中的分组批量部署 |
 | `fastvex deploy --slots 3 --dry-run` | 预览部署计划，不执行构建 |
+| `fastvex clean` | 重置本地部署状态（支持 `--all` 清除整个 `.fastvex/` 目录） |
 | `fastvex migrate` | 从旧版 `vex_upload_config.yaml` 迁移到 v2 配置 |
 | `fastvex toolchain` | 查看 PROS 工具链路径 |
 | `fastvex history show` | 查看部署历史 |
