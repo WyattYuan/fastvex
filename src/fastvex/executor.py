@@ -134,9 +134,11 @@ def run_build(
 ) -> StepRecord:
     common_suffix = build_arg_strings(slot.build_args)
 
+    parallelism = f"-j{max(1, (os.cpu_count() or 1))}"
+
     candidates = [
-        ["pros", "make", *common_suffix],
-        ["make", *common_suffix, f"-j{max(1, (os.cpu_count() or 1))}"],
+        ["pros", "make", *common_suffix, parallelism],
+        ["make", *common_suffix, parallelism],
     ]
 
     errors: list[str] = []

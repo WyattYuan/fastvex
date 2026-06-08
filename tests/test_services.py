@@ -20,7 +20,7 @@ def test_deploy_slots_service_returns_structured_report(robot_project, fake_tool
 
     assert report.failed_slots == []
     assert report.execution is not None
-    assert report.execution.builds[0].step.command == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
+    assert report.execution.builds[0].step.command[:4] == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
     assert "pros upload --slot 3" in fake_tool_path.read_text(encoding="utf-8")
 
 
