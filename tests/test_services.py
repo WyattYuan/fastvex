@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastvex.services import DeployRequest, clean_history, deploy_slots, get_history, validate_project
+from fastvex.services import DeployRequest, clean_history, clean_project, deploy_slots, get_history, validate_project
 from fastvex.state_model import ExecutionRecord, State
 from fastvex.storage import load_state, save_state
 
@@ -100,3 +100,50 @@ def test_clean_history_trims_to_keep_count(robot_project) -> None:
     assert report.kept_count == 1
     assert len(report.state.history) == 1
     assert len(saved.history) == 1
+
+
+def test_clean_project_resets_state(robot_project) -> None:
+    state_path = robot_project / ".fastvex" / "state.json"
+    save_state(
+        state_path,
+        State(
+            last_port="COM3",
+            history=[
+                ExecutionRecord(started_at="2026-05-26T12:00:00+00:00", status="success"),
+            ],
+        ),
+    )
+
+    report = clean_project(config=str(robot_project / "fastvex.yaml"))
+
+    assert report.state_reset is True
+    assert report.directory_removed is False
+    saved = load_state(state_path)
+    assert saved.last_port == ""
+    assert len(saved.history) == 0
+    # .fastvex/ directory should still exist (only state was reset, not removed)
+    assert (robot_project / ".fastvex").is_dir()
+
+
+def test_clean_project_all_removes_directory(robot_project) -> None:
+    state_path = robot_project / ".fastvex" / "state.json"
+    save_state(state_path, State(last_port="COM3"))
+    fastvex_dir = robot_project / ".fastvex"
+    assert fastvex_dir.is_dir()
+
+    report = clean_project(config=str(robot_project / "fastvex.yaml"), all=True)
+
+    assert report.directory_removed is True
+    assert report.state_reset is False
+    assert not fastvex_dir.exists()
+
+
+def test_clean_project_noop_when_no_state(robot_project) -> None:
+    state_path = robot_project / ".fastvex" / "state.json"
+    if state_path.exists():
+        state_path.unlink()
+
+    report = clean_project(config=str(robot_project / "fastvex.yaml"))
+
+    assert report.state_reset is False
+    assert report.directory_removed is False

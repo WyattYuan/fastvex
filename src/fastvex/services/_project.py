@@ -1,7 +1,8 @@
-"""Project lifecycle commands: init, show, validate, history, toolchain."""
+"""Project lifecycle commands: init, show, validate, history, clean, toolchain."""
 from __future__ import annotations
 
 from . import (
+    CleanReport,
     InitReport,
     ShowReport,
     ValidationReport,
@@ -116,6 +117,32 @@ def clean_history(
     loaded_state.history = history[-keep:] if keep > 0 else []
     save_state(paths.state, loaded_state)
     return HistoryCleanReport(paths=paths, removed_count=removed, kept_count=keep, state=loaded_state)
+
+
+def clean_project(
+    config: str | None = None,
+    state: str | None = None,
+    *,
+    all: bool = False,
+) -> CleanReport:
+    import shutil
+
+    paths = resolve_project_paths(config=config, state=state, require_config=not all)
+
+    if all:
+        fastvex_dir = paths.state.parent
+        directory_removed = False
+        if fastvex_dir.is_dir():
+            shutil.rmtree(fastvex_dir)
+            directory_removed = True
+        return CleanReport(paths=paths, state_reset=False, directory_removed=directory_removed)
+
+    state_reset = False
+    if paths.state.exists():
+        save_state(paths.state, default_state())
+        state_reset = True
+
+    return CleanReport(paths=paths, state_reset=state_reset, directory_removed=False)
 
 
 def show_toolchain(rescan: bool = False) -> ToolchainReport:

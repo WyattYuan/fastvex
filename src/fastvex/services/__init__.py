@@ -68,6 +68,13 @@ class HistoryCleanReport:
 
 
 @dataclass(frozen=True)
+class CleanReport:
+    paths: ProjectPaths
+    state_reset: bool
+    directory_removed: bool
+
+
+@dataclass(frozen=True)
 class DeployRequest:
     slots: str | None = None
     group: str | None = None
@@ -127,6 +134,7 @@ from ._project import (  # noqa: E402
     validate_project,
     get_history,
     clean_history,
+    clean_project,
     show_toolchain,
 )
 from ._deploy import plan_deploy, deploy_slots  # noqa: E402
@@ -139,6 +147,7 @@ __all__ = [
     "ValidationReport",
     "HistoryReport",
     "HistoryCleanReport",
+    "CleanReport",
     "DeployRequest",
     "DeployPlan",
     "DeployReport",
@@ -153,6 +162,7 @@ __all__ = [
     "validate_project",
     "get_history",
     "clean_history",
+    "clean_project",
     "show_toolchain",
     "plan_deploy",
     "deploy_slots",

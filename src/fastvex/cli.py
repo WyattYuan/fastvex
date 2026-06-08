@@ -20,10 +20,12 @@ from .display import (
     print_status,
 )
 from .services import (
+    CleanReport,
     DeployRequest,
     HistoryCleanReport,
     ToolchainReport,
     clean_history,
+    clean_project,
     deploy_slots,
     get_history,
     init_project,
@@ -217,6 +219,23 @@ def validate_command(
     for warning in report.warnings:
         console.print(f"  {WARN} {warning}")
     console.print(f"\n  [bold green]{OK} OK[/bold green]\n")
+
+
+@app.command("clean")
+def clean_command(
+    ctx: typer.Context,
+    config: CommonConfig = None,
+    state: CommonState = None,
+    all: Annotated[bool, typer.Option("--all", help="Remove entire .fastvex/ directory.")] = False,
+) -> None:
+    """Reset local deploy state."""
+    report: CleanReport = clean_project(**_ctx_options(ctx, config, state), all=all)
+    if report.directory_removed:
+        console.print(f"  [green]{OK} removed[/green] {report.paths.state.parent}")
+    elif report.state_reset:
+        console.print(f"  [green]{OK} state reset[/green] {report.paths.state}")
+    else:
+        console.print(f"  [dim]nothing to clean[/dim]")
 
 
 @app.command("deploy")
