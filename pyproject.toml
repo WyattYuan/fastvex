@@ -1,6 +1,6 @@
 [project]
 name = "fastvex"
-version = "0.1.2"
+version = "0.1.3"
 description = "Fast VEX V5 slot-oriented deploy CLI"
 license = "MIT"
 readme = "README.md"

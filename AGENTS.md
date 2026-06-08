@@ -6,7 +6,7 @@
 
 - **包名 / 导入名 / 主命令**：`fastvex`
 - **短命令**：`fvx`（与 `fastvex` 等价）
-- **当前版本**：`0.1.0`
+- **当前版本**：`0.1.3`
 - **环境要求**：Python `>=3.11`
 - **包管理器**：`uv`
 - **远端仓库**：`https://github.com/WyattYuan/fastvex.git`
