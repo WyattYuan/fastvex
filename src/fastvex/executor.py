@@ -134,11 +134,9 @@ def run_build(
 ) -> StepRecord:
     common_suffix = build_arg_strings(slot.build_args)
 
-    parallelism = f"-j{max(1, (os.cpu_count() or 1))}"
-
     candidates = [
-        ["pros", "make", *common_suffix, parallelism],
-        ["make", *common_suffix, parallelism],
+        ["pros", "make", *common_suffix],
+        ["make", *common_suffix],
     ]
 
     errors: list[str] = []
@@ -182,6 +180,9 @@ def execute_deploy(
     toolchain_env: dict[str, str] | None = None,
     checkpoint: Callable[[ExecutionRecord], None] | None = None,
 ) -> ExecutionRecord:
+    toolchain_env = dict(toolchain_env) if toolchain_env else {}
+    cpu_count = max(1, (os.cpu_count() or 1))
+    toolchain_env.setdefault("MAKEFLAGS", f"-j{cpu_count}")
     runner = runner or SubprocessRunner(toolchain_env=toolchain_env)
     start_ts = utc_now_iso()
     started = time.perf_counter()

@@ -45,8 +45,7 @@ def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
     execution = execute_deploy(robot_project, _resolved(config, [3]), state, _options([3]), runner)
 
     assert execution.status == "success"
-    assert execution.builds[0].step.command[:4] == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
-    assert execution.builds[0].step.command[4].startswith("-j")
+    assert execution.builds[0].step.command == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
     assert execution.builds[0].step.returncode == 0
     assert execution.uploads[0].step.command == [
         "pros",
@@ -56,7 +55,7 @@ def test_execute_deploy_calls_build_then_upload(robot_project: Path) -> None:
         "--name",
         "skillComp-main-Sparkle",
     ]
-    assert runner.calls[0][:4] == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
+    assert runner.calls[0] == ["pros", "make", "MODE=SKILL_COMP", "ROUTE=0"]
     assert runner.calls[1] == ["pros", "upload", "--slot", "3", "--name", "skillComp-main-Sparkle"]
     assert 3 in state.current_slots
 
@@ -90,8 +89,8 @@ def test_build_failure_does_not_upload(robot_project: Path, monkeypatch) -> None
     state = State()
     runner = FakeRunner(
         {
-            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "pros failed"),
-            ("make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "make failed"),
+            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "pros failed"),
+            ("make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "make failed"),
         }
     )
 
@@ -118,8 +117,8 @@ def test_pros_toolchain_error_output_does_not_update_build_signature(
     )
     runner = FakeRunner(
         {
-            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(0, output),
-            ("make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "make failed"),
+            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(0, output),
+            ("make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "make failed"),
         }
     )
 
@@ -226,8 +225,8 @@ def test_profile_switch_invalidates_signature_immediately_on_touch(
 
     runner = FakeRunner(
         {
-            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "build failed"),
-            ("make", "MODE=SKILL_COMP", "ROUTE=0", "-j1"): CommandResult(1, "build failed"),
+            ("pros", "make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "build failed"),
+            ("make", "MODE=SKILL_COMP", "ROUTE=0"): CommandResult(1, "build failed"),
         }
     )
     monkeypatch.setattr(executor.os, "cpu_count", lambda: 1)
