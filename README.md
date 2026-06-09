@@ -287,42 +287,7 @@ uv tool install --upgrade fastvex
 
 ## 贡献指南
 
-我们非常欢迎社区的贡献！如果您希望参与 `fastvex` 的开发、修复 Bug 或添加新特性，请遵循以下流程：
-
-### 本地开发与环境配置
-
-本项目使用现代高效的 Python 包管理器 [uv](https://docs.astral.sh/uv/)。
-
-1. **克隆仓库并同步虚拟环境**：
-   ```powershell
-   git clone https://github.com/WyattYuan/fastvex.git
-   cd fastvex
-   uv sync
-   ```
-2. **运行代码风格检查（Lint）**：
-   `fastvex` 使用 Ruff 进行极其严苛的代码风格与质量管控：
-   ```powershell
-   uv run ruff check .
-   ```
-3. **运行单元测试与集成测试**：
-   ```powershell
-   uv run pytest
-   ```
-4. **一键完整性校验**：
-   在提交代码前，请务必执行本地一键检查脚本，确保 Lint 和全量测试 100% 通过：
-   ```powershell
-   .\scripts\check.ps1
-   ```
-
-### 提交规范
-
-为了保持项目历史的清晰度与可回溯性，请遵循 **Conventional Commits（约定式提交）** 规范。提交信息的格式建议为：
-```
-<type>(<scope>): <subject>
-
-[optional body]
-```
-* 常见类型包括：`feat`（新功能）、`fix`（Bug 修复）、`docs`（文档更新）、`refactor`（代码重构）、`test`（增加测试）等。
+我们非常欢迎社区的贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详细的开发环境配置、代码规范和提交流程。
 
 ## License
 
